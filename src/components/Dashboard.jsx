@@ -1,4 +1,3 @@
-// Final Dashboard.jsx layout fix with styled unified task box and OpenAI button
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
@@ -11,23 +10,15 @@ export default function Dashboard() {
   const [username, setUsername] = useState('');
   const [userData, setUserData] = useState(null);
   const [enemyHP, setEnemyHP] = useState(20);
-  const [myStats, setMyStats] = useState(false);
   const [tasks, setTasks] = useState({});
   const [newTask, setNewTask] = useState('');
-  const [selectedDay, setSelectedDay] = useState('Monday');
+  const [selectedDay, setSelectedDay] = useState('Sunday');
   const [damageText, setDamageText] = useState('');
   const [showAI, setShowAI] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
   const navigate = useNavigate();
 
-  const days = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
-  ];
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   useEffect(() => {
     const checkUserStatus = async () => {
@@ -67,17 +58,13 @@ export default function Dashboard() {
     navigate('/');
   };
 
-  const toggleStats = () => setMyStats((prev) => !prev);
   const toggleAI = () => setShowAI((prev) => !prev);
 
   const handleAddTask = () => {
     if (!newTask.trim()) return;
     const updated = {
       ...tasks,
-      [selectedDay]: [
-        ...(tasks[selectedDay] || []),
-        { text: newTask, done: false },
-      ],
+      [selectedDay]: [...(tasks[selectedDay] || []), { text: newTask, done: false }],
     };
     setTasks(updated);
     setNewTask('');
@@ -86,9 +73,7 @@ export default function Dashboard() {
   const handleComplete = (index) => {
     const level = userData?.level || 1;
     const damage = level * 2;
-    const updatedTasks = tasks[selectedDay].map((t, i) =>
-      i === index ? { ...t, done: true } : t
-    );
+    const updatedTasks = tasks[selectedDay].map((t, i) => i === index ? { ...t, done: true } : t);
     setTasks({ ...tasks, [selectedDay]: updatedTasks });
 
     setEnemyHP((prev) => {
@@ -112,250 +97,444 @@ export default function Dashboard() {
     setTasks({ ...tasks, [selectedDay]: updated });
   };
 
+  const handleAIPrompt = () => {
+    // Here you would integrate with actual AI service
+    console.log("AI prompt:", aiPrompt);
+    // For demo purposes, just close the AI panel after submit
+    setAiPrompt('');
+  };
+
   if (loading) return <p>Loading...</p>;
 
   return (
-    <div className="dashboard-container">
-      <h1 className="title" style={{ textAlign: 'center', marginTop: '1rem' }}>
-        QuestLog
-      </h1>
+    <div className="dashboard-container" style={{ 
+      backgroundColor: '#2b2750', 
+      color: 'white',
+      minHeight: '100vh',
+      padding: '1rem'
+    }}>
+      <header style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '1.5rem'
+      }}>
+        <h1 className="title" style={{ 
+          fontSize: '2rem',
+          color: '#f3d41b',
+          margin: 0
+        }}>QuestLog</h1>
+        
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={toggleAI} 
+            style={{ 
+              backgroundColor: '#8a7edf',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Chat AI
+          </button>
+          <button 
+            onClick={handleLogout} 
+            style={{ 
+              backgroundColor: '#e74c3c',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
 
       {showWelcome ? (
-        <div className="welcome-popup">
+        <div className="welcome-popup" style={{
+          backgroundColor: '#3a3363',
+          padding: '2rem',
+          borderRadius: '10px',
+          textAlign: 'center',
+          maxWidth: '400px',
+          margin: '0 auto'
+        }}>
           <h2>Welcome to your new journey!</h2>
           <p>Choose your username to begin:</p>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Enter username"
+            style={{
+              padding: '0.5rem',
+              borderRadius: '6px',
+              width: '100%',
+              marginBottom: '1rem',
+              border: 'none'
+            }}
           />
-          <button onClick={handleUsernameSubmit}>Start Quest!</button>
+          <button 
+            onClick={handleUsernameSubmit}
+            style={{
+              backgroundColor: '#4cd3c2',
+              color: '#222',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Start Quest!
+          </button>
         </div>
       ) : (
         userData && (
-          <div className="dashboard-flex" style={{ alignItems: 'flex-start' }}>
-            {/* Left side: Days + Tasks in horizontal flex */}
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              {/* Day Buttons */}
-              <div
-                className="left-panel"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.3rem',
-                }}
-              >
-                {days.map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    className={`day-btn ${selectedDay === day ? 'active' : ''}`}
-                    style={{ minWidth: '110px' }}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
-
-              {/* Unified Task Box */}
-              <div
-                className="task-box"
-                style={{ width: '380px', minHeight: '270px', padding: '1rem' }}
-              >
-                <h3 style={{ textAlign: 'center', color: '#ffc8ff' }}>
-                  {selectedDay}'s Tasks
-                </h3>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '0.5rem',
-                    marginBottom: '0.5rem',
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '200px 1fr 300px',
+            gap: '1.5rem',
+            height: 'calc(100vh - 100px)'
+          }}>
+            {/* Day Selection Panel */}
+            <div style={{ 
+              backgroundColor: '#332d61', 
+              borderRadius: '10px',
+              padding: '0.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem'
+            }}>
+              {days.map((day) => (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(day)}
+                  style={{ 
+                    backgroundColor: selectedDay === day ? '#8a7edf' : '#443d82',
+                    color: 'white',
+                    padding: '0.8rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
                   }}
                 >
-                  <input
-                    value={newTask}
-                    onChange={(e) => setNewTask(e.target.value)}
-                    placeholder="Add a quest..."
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-                    style={{
-                      flex: 1,
-                      padding: '0.5rem',
-                      borderRadius: '6px',
-                      border: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={handleAddTask}
-                    style={{
-                      backgroundColor: '#00f7ff',
-                      color: 'black',
-                      fontWeight: 'bold',
-                      borderRadius: '6px',
-                      border: 'none',
-                      padding: '0.5rem 1rem',
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-                <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
-                  {(tasks[selectedDay] || []).map((task, i) => (
-                    <li
-                      key={i}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '0.3rem 0',
-                        borderBottom: '1px solid #555',
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: task.done ? '#888' : '#fff',
-                          textDecoration: task.done ? 'line-through' : 'none',
-                          flex: 1,
-                        }}
-                      >
-                        {task.text}
-                      </span>
-                      <div style={{ display: 'flex', gap: '0.3rem' }}>
-                        {!task.done && (
-                          <button
-                            onClick={() => handleComplete(i)}
-                            style={{
-                              width: '32px',
-                              background: '#00f7ff',
-                              border: 'none',
-                              borderRadius: '6px',
-                              fontWeight: 'bold',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            ✔
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(i)}
-                          style={{
-                            width: '32px',
-                            background: '#ff4f4f',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ✖
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                  {day}
+                </button>
+              ))}
+            </div>
 
-              {/* ChatGPT AI Button */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                }}
-              >
-                <button
-                  onClick={toggleAI}
-                  style={{
-                    marginBottom: '0.5rem',
-                    backgroundColor: '#ff6600',
-                    color: '#fff',
-                    borderRadius: '8px',
-                    padding: '0.6rem 1.2rem',
+            {/* Tasks Panel */}
+            <div style={{ 
+              backgroundColor: '#332d61', 
+              borderRadius: '10px',
+              padding: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <h2 style={{ 
+                borderBottom: '1px solid #554f86',
+                paddingBottom: '0.8rem',
+                marginTop: 0,
+                marginBottom: '1rem'
+              }}>{selectedDay}'s Quests</h2>
+              
+              <div style={{ 
+                display: 'flex', 
+                gap: '0.5rem', 
+                marginBottom: '1.5rem' 
+              }}>
+                <input
+                  value={newTask}
+                  onChange={(e) => setNewTask(e.target.value)}
+                  placeholder="Add a new quest..."
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
+                  style={{ 
+                    flex: 1, 
+                    padding: '0.7rem',
+                    borderRadius: '6px',
+                    border: 'none'
+                  }}
+                />
+                <button 
+                  onClick={handleAddTask}
+                  style={{ 
+                    backgroundColor: '#4cd3c2',
+                    color: '#222',
+                    padding: '0 1.5rem',
+                    borderRadius: '6px',
                     border: 'none',
                     fontWeight: 'bold',
+                    cursor: 'pointer'
                   }}
                 >
-                  ChatGPT AI
+                  Add
                 </button>
-                {showAI && (
-                  <div
-                    style={{
-                      background: '#1c1a36',
-                      padding: '1rem',
-                      borderRadius: '10px',
-                      color: '#fff',
-                    }}
-                  >
-                    <p>Example prompts:</p>
-                    <ul>
-                      <li>"Suggest 3 tasks for productivity today"</li>
-                      <li>"Help me break down this goal..."</li>
-                      <li>"What are 5 quests I can do for health?"</li>
-                    </ul>
-                  </div>
+              </div>
+
+              <div style={{ 
+                flex: 1,
+                overflowY: 'auto'
+              }}>
+                {(tasks[selectedDay] || []).length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#8a7edf' }}>
+                    No quests added yet. Add your first quest above!
+                  </p>
+                ) : (
+                  (tasks[selectedDay] || []).map((task, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.8rem 1rem',
+                      backgroundColor: '#3a3363',
+                      borderRadius: '6px',
+                      marginBottom: '0.5rem',
+                      border: '1px solid #443d82'
+                    }}>
+                      <span style={{ 
+                        color: task.done ? '#8a7edf' : 'white', 
+                        textDecoration: task.done ? 'line-through' : 'none', 
+                        flex: 1 
+                      }}>
+                        {task.text}
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {!task.done && (
+                          <button 
+                            onClick={() => handleComplete(i)}
+                            style={{ 
+                              backgroundColor: '#4cd3c2',
+                              color: '#222',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            ✓
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleDelete(i)}
+                          style={{ 
+                            backgroundColor: '#e74c3c',
+                            color: 'white',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
 
-            {/* Middle Right: Enemy Zone */}
-            <div
-              className="enemy-zone"
-              style={{
+            {/* Right Panel - Enemy and Stats */}
+            <div style={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}>
+              {/* Enemy Panel - Repositioned and Enhanced */}
+              <div style={{ 
+                backgroundColor: '#332d61', 
+                borderRadius: '10px',
+                padding: '1rem',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                transform: 'translateX(60px)',
-              }}
-            >
-              <img
-                src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmN2YW44djk3c20yNjc3OW5tbzN2YXoxZ2x2amN3M2IzdXh6bWl4aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6vY4JV7oRVZPems0/giphy.gif"
-                alt="Enemy"
-                className="enemy-img"
-              />
-              <div
-                className="enemy-hp-bar"
-                style={{ marginTop: '1rem', width: '300px' }}
-              >
-                <div
-                  className="enemy-hp-fill"
-                  style={{ width: `${(enemyHP / 20) * 100}%` }}
-                ></div>
-              </div>
-              <p style={{ marginTop: '0.5rem' }}>{enemyHP} / 20 HP</p>
-              {damageText && <div className="damage-float">{damageText}</div>}
-            </div>
-
-            {/* Right: My Stats Panel */}
-            <div className="right-panel">
-              <button onClick={handleLogout} className="logout-btn">
-                Logout
-              </button>
-              <button onClick={toggleStats} className="stats-btn right-btn">
-                {myStats ? 'Close Stats' : 'My Stats'}
-              </button>
-              {myStats && (
-                <div className="stats-panel">
-                  <h3>My Stats</h3>
-                  <p>Username: {userData.username}</p>
-                  <p>XP: {userData.xpTotal} / 100</p>
-                  <div className="xp-bar">
-                    <div
-                      className="xp-fill"
-                      style={{ width: `${userData.xpTotal % 100}%` }}
-                    ></div>
-                  </div>
-                  <p>Level: {userData.level}</p>
-                  <p>Total Tasks Done: {userData.stats.tasksCompleted}</p>
-                  <p>Total Damage Done: {userData.stats.totalDamage}</p>
-                  <p>
-                    Enemies Defeated:{' '}
-                    {Math.floor(userData.stats.totalDamage / 20)}
-                  </p>
+                position: 'relative'
+              }}>
+                <div style={{
+                  width: '170px',
+                  height: '170px',
+                  backgroundColor: '#4cd3c2',
+                  borderRadius: '8px',
+                  marginBottom: '1rem',
+                  overflow: 'hidden'
+                }}>
+                  <img
+                    src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmN2YW44djk3c20yNjc3OW5tbzN2YXoxZ2x2amN3M2IzdXh6bWl4aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6vY4JV7oRVZPems0/giphy.gif"
+                    alt="Enemy"
+                    style={{ 
+                      width: '100%', 
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
                 </div>
-              )}
+
+                <div style={{ 
+                  width: '100%',
+                  height: '10px',
+                  backgroundColor: '#443d82',
+                  borderRadius: '5px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ 
+                    height: '100%',
+                    width: `${(enemyHP / 20) * 100}%`,
+                    backgroundColor: '#e74c3c',
+                    transition: 'width 0.3s ease-out'
+                  }}></div>
+                </div>
+                
+                <p style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                  {enemyHP} / 20 HP
+                </p>
+
+                {damageText && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    color: '#e74c3c',
+                    fontWeight: 'bold',
+                    fontSize: '1.5rem',
+                    animation: 'float-up 1s forwards'
+                  }}>
+                    {damageText}
+                  </div>
+                )}
+              </div>
+
+              {/* Stats Panel - Reordered as requested */}
+              <div style={{ 
+                backgroundColor: '#332d61', 
+                borderRadius: '10px',
+                padding: '1.5rem'
+              }}>
+                <h2 style={{ 
+                  marginTop: 0,
+                  marginBottom: '1rem'
+                }}>Your Stats</h2>
+                
+                <div style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '0.8rem'
+                }}>
+                  <div>Level</div>
+                  <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                    {userData.level || 1}
+                  </div>
+                  
+                  <div>XP</div>
+                  <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                    {userData.xpTotal || 0}/100
+                  </div>
+                  
+                  <div>Quests Completed</div>
+                  <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                    {userData.stats?.tasksCompleted || 0}
+                  </div>
+                  
+                  <div>Current Streak</div>
+                  <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                    {userData.stats?.streak || 0} days
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )
+      )}
+
+      {/* Enhanced AI Chat Popup */}
+      {showAI && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '20px',
+          backgroundColor: '#332d61',
+          padding: '1.5rem',
+          borderRadius: '10px',
+          maxWidth: '350px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          zIndex: 100
+        }}>
+          <h3 style={{ marginTop: 0, color: '#fff' }}>Chat AI Assistant</h3>
+          
+          <div style={{ marginBottom: '1rem' }}>
+            <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Ask me for quest suggestions:</p>
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Type your question here..."
+              style={{
+                width: '100%',
+                padding: '0.7rem',
+                borderRadius: '6px',
+                border: 'none',
+                minHeight: '80px',
+                backgroundColor: '#3a3363',
+                color: 'white'
+              }}
+            />
+            <button
+              onClick={handleAIPrompt}
+              style={{
+                backgroundColor: '#4cd3c2',
+                color: '#222',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: 'none',
+                width: '100%',
+                marginTop: '0.5rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Get Suggestions
+            </button>
+          </div>
+          
+          <div style={{ backgroundColor: '#3a3363', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem' }}>
+            <p style={{ fontWeight: 'bold', marginTop: 0 }}>Try these examples:</p>
+            <ul style={{ paddingLeft: '1.2rem', marginBottom: '0.5rem' }}>
+              <li>"Suggest 3 productivity quests for today"</li>
+              <li>"Help me break down my fitness goal"</li>
+              <li>"Give me 5 creative quests for the weekend"</li>
+            </ul>
+          </div>
+          
+          <button
+            onClick={toggleAI}
+            style={{
+              backgroundColor: '#e74c3c',
+              color: 'white',
+              padding: '0.5rem',
+              borderRadius: '6px',
+              border: 'none',
+              width: '100%',
+              cursor: 'pointer'
+            }}
+          >
+            Close
+          </button>
+        </div>
       )}
     </div>
   );
