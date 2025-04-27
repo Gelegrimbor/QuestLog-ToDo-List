@@ -279,38 +279,64 @@ export default function Dashboard() {
 
               <div style={{ 
                 flex: 1,
-                overflowY: 'auto'
+                overflowY: 'auto',
+                maxHeight: 'calc(100vh - 250px)',
+                paddingRight: '5px'
               }}>
                 {(tasks[selectedDay] || []).length === 0 ? (
                   <p style={{ textAlign: 'center', color: '#8a7edf' }}>
                     No quests added yet. Add your first quest above!
                   </p>
                 ) : (
-                  (tasks[selectedDay] || []).map((task, i) => (
-                    <div key={i} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '0.8rem 1rem',
-                      backgroundColor: '#3a3363',
-                      borderRadius: '6px',
-                      marginBottom: '0.5rem',
-                      border: '1px solid #443d82'
-                    }}>
-                      <span style={{ 
-                        color: task.done ? '#8a7edf' : 'white', 
-                        textDecoration: task.done ? 'line-through' : 'none', 
-                        flex: 1 
+                  <div className="task-list" style={{
+                    overflowY: 'auto', 
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.4rem'
+                  }}>
+                    {(tasks[selectedDay] || []).map((task, i) => (
+                      <div key={i} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.7rem 1rem',
+                        backgroundColor: '#3a3363',
+                        borderRadius: '6px',
+                        border: '1px solid #443d82'
                       }}>
-                        {task.text}
-                      </span>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {!task.done && (
+                        <span style={{ 
+                          color: task.done ? '#8a7edf' : 'white', 
+                          textDecoration: task.done ? 'line-through' : 'none', 
+                          flex: 1 
+                        }}>
+                          {task.text}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {!task.done && (
+                            <button 
+                              onClick={() => handleComplete(i)}
+                              style={{ 
+                                backgroundColor: '#4cd3c2',
+                                color: '#222',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              ✓
+                            </button>
+                          )}
                           <button 
-                            onClick={() => handleComplete(i)}
+                            onClick={() => handleDelete(i)}
                             style={{ 
-                              backgroundColor: '#4cd3c2',
-                              color: '#222',
+                              backgroundColor: '#e74c3c',
+                              color: 'white',
                               width: '32px',
                               height: '32px',
                               borderRadius: '6px',
@@ -322,30 +348,12 @@ export default function Dashboard() {
                               justifyContent: 'center'
                             }}
                           >
-                            ✓
+                            ✕
                           </button>
-                        )}
-                        <button 
-                          onClick={() => handleDelete(i)}
-                          style={{ 
-                            backgroundColor: '#e74c3c',
-                            color: 'white',
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          ✕
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -356,23 +364,25 @@ export default function Dashboard() {
               flexDirection: 'column',
               gap: '1rem'
             }}>
-              {/* Enemy Panel - Repositioned and Enhanced */}
+              {/* Enemy Panel - Enlarged and Enhanced */}
               <div style={{ 
                 backgroundColor: '#332d61', 
                 borderRadius: '10px',
-                padding: '1rem',
+                padding: '1.5rem',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                position: 'relative'
+                position: 'relative',
+                marginBottom: '1.5rem'
               }}>
                 <div style={{
-                  width: '170px',
-                  height: '170px',
+                  width: '200px',
+                  height: '200px',
                   backgroundColor: '#4cd3c2',
                   borderRadius: '8px',
-                  marginBottom: '1rem',
-                  overflow: 'hidden'
+                  marginBottom: '1.5rem',
+                  overflow: 'hidden',
+                  border: '2px solid #4cd3c2'
                 }}>
                   <img
                     src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmN2YW44djk3c20yNjc3OW5tbzN2YXoxZ2x2amN3M2IzdXh6bWl4aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6vY4JV7oRVZPems0/giphy.gif"
@@ -387,9 +397,9 @@ export default function Dashboard() {
 
                 <div style={{ 
                   width: '100%',
-                  height: '10px',
+                  height: '12px',
                   backgroundColor: '#443d82',
-                  borderRadius: '5px',
+                  borderRadius: '6px',
                   overflow: 'hidden'
                 }}>
                   <div style={{ 
@@ -400,7 +410,7 @@ export default function Dashboard() {
                   }}></div>
                 </div>
                 
-                <p style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                <p style={{ marginTop: '0.7rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold' }}>
                   {enemyHP} / 20 HP
                 </p>
 
@@ -420,16 +430,17 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Stats Panel - Reordered as requested */}
+              {/* Stats Panel - Reordered and Username added */}
               <div style={{ 
                 backgroundColor: '#332d61', 
                 borderRadius: '10px',
-                padding: '1.5rem'
+                padding: '1.5rem',
+                marginTop: '1rem'
               }}>
                 <h2 style={{ 
                   marginTop: 0,
                   marginBottom: '1rem'
-                }}>Your Stats</h2>
+                }}>{userData.username}'s Stats</h2>
                 
                 <div style={{ 
                   display: 'grid',
