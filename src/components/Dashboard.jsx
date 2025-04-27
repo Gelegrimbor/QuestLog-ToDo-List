@@ -20,7 +20,11 @@ export default function Dashboard() {
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [aiError, setAiError] = useState('');
   const navigate = useNavigate();
+
+  // API key from environment variable
+  const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -57,6 +61,11 @@ export default function Dashboard() {
             // For level 3: 30 HP, etc.
             const currentHP = data.currentEnemyHP || (20 + ((data.level || 1) - 1) * 5);
             setEnemyHP(currentHP);
+          }
+          
+          // Set tasks if they exist
+          if (data.tasks) {
+            setTasks(data.tasks);
           }
         }
       } catch (err) {
@@ -103,7 +112,11 @@ export default function Dashboard() {
   };
 
   const toggleStats = () => setMyStats((prev) => !prev);
-  const toggleAI = () => setShowAI((prev) => !prev);
+  const toggleAI = () => {
+    setShowAI((prev) => !prev);
+    // Clear any previous errors when opening/closing
+    setAiError('');
+  };
 
   const handleAddTask = () => {
     if (!newTask.trim()) return;
@@ -113,6 +126,22 @@ export default function Dashboard() {
     };
     setTasks(updated);
     setNewTask('');
+    
+    // Save tasks to database
+    if (userData && auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
+      updateDoc(userRef, { tasks: updated });
+    }
+  };
+
+  // Add a task from AI suggestions
+  const addSuggestionAsTask = (suggestion) => {
+    const updated = {
+      ...tasks,
+      [selectedDay]: [...(tasks[selectedDay] || []), { text: suggestion, done: false }],
+    };
+    setTasks(updated);
     
     // Save tasks to database
     if (userData && auth.currentUser) {
@@ -283,6 +312,90 @@ export default function Dashboard() {
   const handleDelete = (index) => {
     const updated = tasks[selectedDay].filter((_, i) => i !== index);
     setTasks({ ...tasks, [selectedDay]: updated });
+    
+    // Update in database
+    if (userData && auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
+      updateDoc(userRef, { 
+        tasks: { ...tasks, [selectedDay]: updated } 
+      });
+    }
+  };
+
+  // New function to get AI suggestions
+  const getAISuggestions = async () => {
+    if (!aiPrompt.trim()) {
+      setAiError('Please enter a prompt to get suggestions');
+      return;
+    }
+    
+    if (!API_KEY) {
+      setAiError('API key not configured. Please check your environment settings.');
+      return;
+    }
+    
+    setAiLoading(true);
+    setAiError('');
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant for a gamified task management app called QuestLog. Provide short, actionable task suggestions that are specific and start with action verbs. Format your response as a JSON array of strings for easy parsing. Limit to 5 suggestions max."
+            },
+            {
+              role: "user",
+              content: aiPrompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 300
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'API request failed');
+      }
+      
+      const data = await response.json();
+      let suggestions = [];
+      
+      try {
+        // Try to parse the response as JSON
+        const content = data.choices[0]?.message?.content || '';
+        // Find JSON array in the response - could be embedded in text
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          suggestions = JSON.parse(jsonMatch[0]);
+        } else {
+          // Fallback to splitting by newlines if JSON parsing fails
+          suggestions = content.split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('{') && !line.startsWith('}') && !line.startsWith('[') && !line.startsWith(']'));
+        }
+      } catch (parseError) {
+        console.error('Error parsing suggestions:', parseError);
+        // Last resort fallback
+        suggestions = [data.choices[0]?.message?.content || 'No suggestions available'];
+      }
+      
+      setAiSuggestions(suggestions);
+    } catch (error) {
+      console.error('Error getting AI suggestions:', error);
+      setAiError(error.message || 'Failed to get suggestions. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   if (loading) return <p>Loading...</p>;
@@ -319,6 +432,13 @@ export default function Dashboard() {
         @keyframes float-up {
           0% { opacity: 1; transform: translate(-50%, -50%); }
           100% { opacity: 0; transform: translate(-50%, -120%); }
+        }
+
+        /* Level up animation */
+        @keyframes level-up-pulse {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.2); opacity: 0.8; }
+          100% { transform: scale(1); opacity: 1; }
         }
       `}
       </style>
@@ -364,6 +484,27 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
+
+      {showLevelUp && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'rgba(76, 211, 194, 0.9)',
+          color: '#222',
+          padding: '2rem',
+          borderRadius: '10px',
+          textAlign: 'center',
+          zIndex: 1000,
+          animation: 'level-up-pulse 0.8s ease-in-out infinite'
+        }}>
+          <h2 style={{ fontSize: '2rem', margin: '0 0 1rem 0' }}>Level Up!</h2>
+          <p style={{ fontSize: '1.5rem', margin: 0 }}>
+            You are now level {userData?.level}!
+          </p>
+        </div>
+      )}
 
       {showWelcome ? (
         <div className="welcome-popup" style={{
@@ -493,7 +634,7 @@ export default function Dashboard() {
                 maxHeight: 'calc(100vh - 250px)',
                 paddingRight: '5px'
               }}>
-                {(tasks[selectedDay] || []).length === 0 ? (
+                {(!tasks[selectedDay] || tasks[selectedDay].length === 0) ? (
                   <p style={{ textAlign: 'center', color: '#8a7edf' }}>
                     No quests added yet. Add your first quest above!
                   </p>
@@ -713,7 +854,7 @@ export default function Dashboard() {
         )
       )}
 
-      {/* Enhanced AI Chat Popup */}
+      {/* Enhanced AI Chat Popup with Actual Functionality */}
       {showAI && (
         <div style={{
           position: 'fixed',
@@ -722,7 +863,7 @@ export default function Dashboard() {
           backgroundColor: '#332d61',
           padding: '1.5rem',
           borderRadius: '10px',
-          maxWidth: '350px',
+          maxWidth: '400px',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
           zIndex: 100
         }}>
@@ -745,9 +886,10 @@ export default function Dashboard() {
               }}
             />
             <button
-              onClick={() => alert("AI suggestion feature coming soon!")}
+              onClick={getAISuggestions}
+              disabled={aiLoading}
               style={{
-                backgroundColor: '#4cd3c2',
+                backgroundColor: aiLoading ? '#999' : '#4cd3c2',
                 color: '#222',
                 padding: '0.5rem 1rem',
                 borderRadius: '6px',
@@ -755,12 +897,63 @@ export default function Dashboard() {
                 width: '100%',
                 marginTop: '0.5rem',
                 fontWeight: 'bold',
-                cursor: 'pointer'
+                cursor: aiLoading ? 'not-allowed' : 'pointer'
               }}
             >
-              Get Suggestions
+              {aiLoading ? 'Getting Suggestions...' : 'Get Suggestions'}
             </button>
           </div>
+          
+          {aiError && (
+            <div style={{ 
+              backgroundColor: '#e74c3c', 
+              color: 'white',
+              padding: '0.8rem',
+              borderRadius: '6px',
+              marginBottom: '1rem'
+            }}>
+              {aiError}
+            </div>
+          )}
+          
+          {aiSuggestions.length > 0 && (
+            <div style={{ 
+              backgroundColor: '#3a3363',
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem'
+            }}>
+              <p style={{ fontWeight: 'bold', marginTop: 0, marginBottom: '0.8rem' }}>
+                Suggested Quests:
+              </p>
+              <ul style={{ 
+                paddingLeft: '1.2rem',
+                marginTop: 0,
+                marginBottom: 0
+              }}>
+                {aiSuggestions.map((suggestion, idx) => (
+                  <li key={idx} style={{ marginBottom: '0.8rem' }}>
+                    {suggestion}
+                    <button
+                      onClick={() => addSuggestionAsTask(suggestion)}
+                      style={{
+                        backgroundColor: '#4cd3c2',
+                        color: '#222',
+                        padding: '0.3rem 0.5rem',
+                        borderRadius: '4px',
+                        border: 'none',
+                        marginLeft: '0.5rem',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Add
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           
           <div style={{ backgroundColor: '#3a3363', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem' }}>
             <p style={{ fontWeight: 'bold', marginTop: 0 }}>Try these examples:</p>
