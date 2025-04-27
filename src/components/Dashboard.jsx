@@ -109,13 +109,70 @@ export default function Dashboard() {
     };
     setTasks(updated);
     setNewTask('');
+    
+    // Save tasks to database
+    if (userData && auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
+      updateDoc(userRef, { tasks: updated });
+    }
   };
 
   const handleComplete = (index) => {
     const level = userData?.level || 1;
     const damage = getDamagePerTask(level);
-    const updatedTasks = tasks[selectedDay].map((t, i) => i === index ? { ...t, done: true } : t);
-    setTasks({ ...tasks, [selectedDay]: updatedTasks });
+    
+    // Mark task as complete and move it to the bottom
+    const taskToComplete = tasks[selectedDay][index];
+    const otherIncompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && !t.done);
+    const otherCompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && t.done);
+    
+    const updatedTasks = {
+      ...tasks,
+      [selectedDay]: [
+        ...otherIncompleteTasks,
+        ...otherCompleteTasks,
+        { ...taskToComplete, done: true }
+      ]
+    };
+    
+    setTasks(updatedTasks);
+    
+    // Update streak
+    const today = new Date();
+    const todayString = today.toDateString();
+    let streak = userData?.stats?.streak || 0;
+    let lastCompletedDate = userData?.lastCompletedDate || '';
+    
+    // Check if this is a new day compared to last completion
+    if (lastCompletedDate !== todayString) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayString = yesterday.toDateString();
+      
+      // If last completed date was yesterday, increment streak
+      if (lastCompletedDate === yesterdayString) {
+        streak += 1;
+      } 
+      // If it's been more than a day, reset streak to 1
+      else if (lastCompletedDate !== todayString) {
+        streak = 1;
+      }
+      
+      // Update last completed date
+      lastCompletedDate = todayString;
+      
+      // Update in Firestore
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const userRef = doc(db, 'users', uid);
+        updateDoc(userRef, {
+          'stats.streak': streak,
+          lastCompletedDate: todayString,
+          tasks: updatedTasks
+        });
+      }
+    }
 
     setEnemyHP((prev) => {
       const newHP = prev - damage;
@@ -125,9 +182,14 @@ export default function Dashboard() {
           ...userData.stats,
           tasksCompleted: userData.stats.tasksCompleted + 1,
           totalDamage: userData.stats.totalDamage + damage,
+          streak: streak
         };
         
-        setUserData((prev) => ({ ...prev, stats: updatedStats }));
+        setUserData((prev) => ({ 
+          ...prev, 
+          stats: updatedStats,
+          lastCompletedDate: lastCompletedDate
+        }));
       }
       
       setDamageText(`-${damage} HP`);
@@ -150,7 +212,12 @@ export default function Dashboard() {
             ...prev,
             level: newLevel,
             xpTotal: xpRemaining,
-            xpRequired: newRequiredXP
+            xpRequired: newRequiredXP,
+            stats: {
+              ...prev.stats,
+              streak: streak
+            },
+            lastCompletedDate: lastCompletedDate
           }));
           
           // Update in Firestore (if needed)
@@ -160,7 +227,10 @@ export default function Dashboard() {
             updateDoc(userRef, {
               level: newLevel,
               xpTotal: xpRemaining,
-              xpRequired: newRequiredXP
+              xpRequired: newRequiredXP,
+              'stats.streak': streak,
+              lastCompletedDate: lastCompletedDate,
+              tasks: updatedTasks
             });
           }
           
@@ -173,7 +243,12 @@ export default function Dashboard() {
           // Just update XP
           setUserData(prev => ({
             ...prev,
-            xpTotal: newTotalXP
+            xpTotal: newTotalXP,
+            stats: {
+              ...prev.stats,
+              streak: streak
+            },
+            lastCompletedDate: lastCompletedDate
           }));
           
           // Update in Firestore (if needed)
@@ -181,7 +256,10 @@ export default function Dashboard() {
             const uid = auth.currentUser.uid;
             const userRef = doc(db, 'users', uid);
             updateDoc(userRef, {
-              xpTotal: newTotalXP
+              xpTotal: newTotalXP,
+              'stats.streak': streak,
+              lastCompletedDate: lastCompletedDate,
+              tasks: updatedTasks
             });
           }
         }
