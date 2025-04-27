@@ -10,15 +10,25 @@ export default function Dashboard() {
   const [username, setUsername] = useState('');
   const [userData, setUserData] = useState(null);
   const [enemyHP, setEnemyHP] = useState(20);
+  const [myStats, setMyStats] = useState(false);
   const [tasks, setTasks] = useState({});
   const [newTask, setNewTask] = useState('');
-  const [selectedDay, setSelectedDay] = useState('Sunday');
+  const [selectedDay, setSelectedDay] = useState('Monday');
   const [damageText, setDamageText] = useState('');
   const [showAI, setShowAI] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
   const navigate = useNavigate();
 
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  // Get XP needed for level
+  const getRequiredXP = (level) => {
+    return 20 + ((level - 1) * 5); // Level 1: 20, Level 2: 25, Level 3: 30, etc.
+  };
+
+  // Get damage based on level
+  const getDamagePerTask = (level) => {
+    return level * 2; // Level 1: 2 damage, Level 2: 4 damage, Level 3: 6 damage, etc.
+  };
 
   useEffect(() => {
     const checkUserStatus = async () => {
@@ -34,7 +44,16 @@ export default function Dashboard() {
           const data = userSnap.data();
           setUserData(data);
           if (!data.username) setShowWelcome(true);
-          else setUsername(data.username);
+          else {
+            setUsername(data.username);
+            
+            // Set enemy HP based on level
+            // For level 1: 20 HP
+            // For level 2: 25 HP
+            // For level 3: 30 HP, etc.
+            const currentHP = data.currentEnemyHP || (20 + ((data.level || 1) - 1) * 5);
+            setEnemyHP(currentHP);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -48,9 +67,30 @@ export default function Dashboard() {
   const handleUsernameSubmit = async () => {
     const uid = auth.currentUser.uid;
     const userRef = doc(db, 'users', uid);
-    await updateDoc(userRef, { username });
+    await updateDoc(userRef, { 
+      username,
+      level: 1,
+      xpTotal: 0,
+      xpRequired: 20,
+      stats: {
+        tasksCompleted: 0,
+        totalDamage: 0,
+        streak: 0
+      } 
+    });
     setShowWelcome(false);
-    setUserData((prev) => ({ ...prev, username }));
+    setUserData((prev) => ({ 
+      ...prev, 
+      username,
+      level: 1,
+      xpTotal: 0,
+      xpRequired: 20,
+      stats: {
+        tasksCompleted: 0,
+        totalDamage: 0,
+        streak: 0
+      } 
+    }));
   };
 
   const handleLogout = async () => {
@@ -58,6 +98,7 @@ export default function Dashboard() {
     navigate('/');
   };
 
+  const toggleStats = () => setMyStats((prev) => !prev);
   const toggleAI = () => setShowAI((prev) => !prev);
 
   const handleAddTask = () => {
@@ -72,36 +113,91 @@ export default function Dashboard() {
 
   const handleComplete = (index) => {
     const level = userData?.level || 1;
-    const damage = level * 2;
+    const damage = getDamagePerTask(level);
     const updatedTasks = tasks[selectedDay].map((t, i) => i === index ? { ...t, done: true } : t);
     setTasks({ ...tasks, [selectedDay]: updatedTasks });
 
     setEnemyHP((prev) => {
       const newHP = prev - damage;
+      
       if (userData) {
         const updatedStats = {
           ...userData.stats,
           tasksCompleted: userData.stats.tasksCompleted + 1,
           totalDamage: userData.stats.totalDamage + damage,
         };
+        
         setUserData((prev) => ({ ...prev, stats: updatedStats }));
       }
+      
       setDamageText(`-${damage} HP`);
       setTimeout(() => setDamageText(''), 1000);
-      return newHP <= 0 ? 20 : newHP;
+      
+      if (newHP <= 0) {
+        // Enemy is defeated, award XP
+        const xpGain = 20; // Fixed XP per enemy
+        const currentXP = userData?.xpTotal || 0;
+        const requiredXP = userData?.xpRequired || 20;
+        const newTotalXP = currentXP + xpGain;
+        
+        if (newTotalXP >= requiredXP) {
+          // Level up!
+          const newLevel = (userData?.level || 1) + 1;
+          const newRequiredXP = getRequiredXP(newLevel);
+          const xpRemaining = newTotalXP - requiredXP;
+          
+          setUserData(prev => ({
+            ...prev,
+            level: newLevel,
+            xpTotal: xpRemaining,
+            xpRequired: newRequiredXP
+          }));
+          
+          // Update in Firestore (if needed)
+          if (auth.currentUser) {
+            const uid = auth.currentUser.uid;
+            const userRef = doc(db, 'users', uid);
+            updateDoc(userRef, {
+              level: newLevel,
+              xpTotal: xpRemaining,
+              xpRequired: newRequiredXP
+            });
+          }
+          
+          // Display level up message (you can implement this if needed)
+          alert(`Level Up! You are now level ${newLevel}!`);
+          
+          // New enemy HP based on NEW level (after level up)
+          return 20 + ((newLevel - 1) * 5); // Level 1: 20HP, Level 2: 25HP, Level 3: 30HP
+        } else {
+          // Just update XP
+          setUserData(prev => ({
+            ...prev,
+            xpTotal: newTotalXP
+          }));
+          
+          // Update in Firestore (if needed)
+          if (auth.currentUser) {
+            const uid = auth.currentUser.uid;
+            const userRef = doc(db, 'users', uid);
+            updateDoc(userRef, {
+              xpTotal: newTotalXP
+            });
+          }
+        }
+        
+        // Reset enemy with CURRENT level-appropriate HP
+        // For Level 1, it should be 20HP
+        return 20 + ((userData?.level || 1) - 1) * 5;
+      }
+      
+      return newHP;
     });
   };
 
   const handleDelete = (index) => {
     const updated = tasks[selectedDay].filter((_, i) => i !== index);
     setTasks({ ...tasks, [selectedDay]: updated });
-  };
-
-  const handleAIPrompt = () => {
-    // Here you would integrate with actual AI service
-    console.log("AI prompt:", aiPrompt);
-    // For demo purposes, just close the AI panel after submit
-    setAiPrompt('');
   };
 
   if (loading) return <p>Loading...</p>;
@@ -113,6 +209,35 @@ export default function Dashboard() {
       minHeight: '100vh',
       padding: '1rem'
     }}>
+      <style>
+      {`
+        /* Custom Scrollbar Styles */
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+          background: #332d61;
+          border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+          background: #8a7edf;
+          border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+          background: #9d93e2;
+        }
+        
+        /* Animation for damage text */
+        @keyframes float-up {
+          0% { opacity: 1; transform: translate(-50%, -50%); }
+          100% { opacity: 0; transform: translate(-50%, -120%); }
+        }
+      `}
+      </style>
+
       <header style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -384,15 +509,40 @@ export default function Dashboard() {
                   overflow: 'hidden',
                   border: '2px solid #4cd3c2'
                 }}>
-                  <img
-                    src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmN2YW44djk3c20yNjc3OW5tbzN2YXoxZ2x2amN3M2IzdXh6bWl4aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6vY4JV7oRVZPems0/giphy.gif"
-                    alt="Enemy"
-                    style={{ 
-                      width: '100%', 
-                      height: '100%',
-                      objectFit: 'cover'
-                    }}
-                  />
+                  {/* Different enemy images based on level */}
+                  {userData.level === 1 && (
+                    <img
+                      src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmN2YW44djk3c20yNjc3OW5tbzN2YXoxZ2x2amN3M2IzdXh6bWl4aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6vY4JV7oRVZPems0/giphy.gif"
+                      alt="Level 1 Enemy"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  )}
+                  {userData.level === 2 && (
+                    <img
+                      src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExaThncWF2ZzUyYm9wZGV1Y2thMzdkeG16eGRuN2JmZ3Fic2c2eWhyNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QVyiT43l46cUcziWxp/giphy.gif"
+                      alt="Level 2 Enemy"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  )}
+                  {userData.level >= 3 && (
+                    <img
+                      src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMGo1eXhyZWE4NjZmb3VpaWlhNDBkbTI5eXBnZGhhZHcwajFmeGtsOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JUkHqOky4Np0xyL4k8/giphy.gif"
+                      alt="Level 3+ Enemy"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                  )}
                 </div>
 
                 <div style={{ 
@@ -404,14 +554,14 @@ export default function Dashboard() {
                 }}>
                   <div style={{ 
                     height: '100%',
-                    width: `${(enemyHP / 20) * 100}%`,
+                    width: `${(enemyHP / (20 + ((userData?.level || 1) - 1) * 5)) * 100}%`,
                     backgroundColor: '#e74c3c',
                     transition: 'width 0.3s ease-out'
                   }}></div>
                 </div>
                 
                 <p style={{ marginTop: '0.7rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                  {enemyHP} / 20 HP
+                  {enemyHP} / {20 + ((userData?.level || 1) - 1) * 5} HP
                 </p>
 
                 {damageText && (
@@ -454,7 +604,7 @@ export default function Dashboard() {
                   
                   <div>XP</div>
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                    {userData.xpTotal || 0}/100
+                    {userData.xpTotal || 0}/{userData.xpRequired || getRequiredXP(userData.level || 1)}
                   </div>
                   
                   <div>Quests Completed</div>
@@ -465,6 +615,11 @@ export default function Dashboard() {
                   <div>Current Streak</div>
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
                     {userData.stats?.streak || 0} days
+                  </div>
+                  
+                  <div>Damage per Quest</div>
+                  <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                    {getDamagePerTask(userData.level || 1)}
                   </div>
                 </div>
               </div>
@@ -505,7 +660,7 @@ export default function Dashboard() {
               }}
             />
             <button
-              onClick={handleAIPrompt}
+              onClick={() => alert("AI suggestion feature coming soon!")}
               style={{
                 backgroundColor: '#4cd3c2',
                 color: '#222',
