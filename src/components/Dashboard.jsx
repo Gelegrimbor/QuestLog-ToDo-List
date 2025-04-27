@@ -16,6 +16,10 @@ export default function Dashboard() {
   const [selectedDay, setSelectedDay] = useState('Monday');
   const [damageText, setDamageText] = useState('');
   const [showAI, setShowAI] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showLevelUp, setShowLevelUp] = useState(false);
   const navigate = useNavigate();
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -140,38 +144,41 @@ export default function Dashboard() {
     
     // Update streak
     const today = new Date();
-    const todayString = today.toDateString();
-    let streak = userData?.stats?.streak || 0;
-    let lastCompletedDate = userData?.lastCompletedDate || '';
+    today.setHours(0, 0, 0, 0); // Normalize to midnight
     
-    // Check if this is a new day compared to last completion
-    if (lastCompletedDate !== todayString) {
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayString = yesterday.toDateString();
+    let streak = userData?.stats?.streak || 0;
+    const lastCompletionDate = userData?.lastCompletedDate ? new Date(userData.lastCompletedDate) : null;
+    
+    // If we have a last completion date
+    if (lastCompletionDate) {
+      lastCompletionDate.setHours(0, 0, 0, 0); // Normalize to midnight
       
-      // If last completed date was yesterday, increment streak
-      if (lastCompletedDate === yesterdayString) {
+      // Calculate difference in days
+      const timeDiff = today.getTime() - lastCompletionDate.getTime();
+      const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+      
+      if (daysDiff === 1) {
+        // Completed yesterday - increase streak
         streak += 1;
-      } 
-      // If it's been more than a day, reset streak to 1
-      else if (lastCompletedDate !== todayString) {
+      } else if (daysDiff > 1) {
+        // Missed some days - reset streak
         streak = 1;
       }
-      
-      // Update last completed date
-      lastCompletedDate = todayString;
-      
-      // Update in Firestore
-      if (auth.currentUser) {
-        const uid = auth.currentUser.uid;
-        const userRef = doc(db, 'users', uid);
-        updateDoc(userRef, {
-          'stats.streak': streak,
-          lastCompletedDate: todayString,
-          tasks: updatedTasks
-        });
-      }
+      // If daysDiff is 0, it's the same day, keep streak the same
+    } else {
+      // First completion ever
+      streak = 1;
+    }
+    
+    // Save updated streak and last completion date to Firestore
+    if (auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
+      updateDoc(userRef, {
+        'stats.streak': streak,
+        lastCompletedDate: today.toISOString(),
+        tasks: updatedTasks
+      });
     }
 
     setEnemyHP((prev) => {
@@ -180,15 +187,15 @@ export default function Dashboard() {
       if (userData) {
         const updatedStats = {
           ...userData.stats,
-          tasksCompleted: userData.stats.tasksCompleted + 1,
-          totalDamage: userData.stats.totalDamage + damage,
+          tasksCompleted: (userData.stats?.tasksCompleted || 0) + 1,
+          totalDamage: (userData.stats?.totalDamage || 0) + damage,
           streak: streak
         };
         
         setUserData((prev) => ({ 
           ...prev, 
           stats: updatedStats,
-          lastCompletedDate: lastCompletedDate
+          lastCompletedDate: today.toISOString()
         }));
       }
       
@@ -217,10 +224,10 @@ export default function Dashboard() {
               ...prev.stats,
               streak: streak
             },
-            lastCompletedDate: lastCompletedDate
+            lastCompletedDate: today.toISOString()
           }));
           
-          // Update in Firestore (if needed)
+          // Update in Firestore
           if (auth.currentUser) {
             const uid = auth.currentUser.uid;
             const userRef = doc(db, 'users', uid);
@@ -229,13 +236,14 @@ export default function Dashboard() {
               xpTotal: xpRemaining,
               xpRequired: newRequiredXP,
               'stats.streak': streak,
-              lastCompletedDate: lastCompletedDate,
+              lastCompletedDate: today.toISOString(),
               tasks: updatedTasks
             });
           }
           
-          // Display level up message (you can implement this if needed)
-          alert(`Level Up! You are now level ${newLevel}!`);
+          // Show level up animation
+          setShowLevelUp(true);
+          setTimeout(() => setShowLevelUp(false), 3000);
           
           // New enemy HP based on NEW level (after level up)
           return 20 + ((newLevel - 1) * 5); // Level 1: 20HP, Level 2: 25HP, Level 3: 30HP
@@ -248,24 +256,23 @@ export default function Dashboard() {
               ...prev.stats,
               streak: streak
             },
-            lastCompletedDate: lastCompletedDate
+            lastCompletedDate: today.toISOString()
           }));
           
-          // Update in Firestore (if needed)
+          // Update in Firestore
           if (auth.currentUser) {
             const uid = auth.currentUser.uid;
             const userRef = doc(db, 'users', uid);
             updateDoc(userRef, {
               xpTotal: newTotalXP,
               'stats.streak': streak,
-              lastCompletedDate: lastCompletedDate,
+              lastCompletedDate: today.toISOString(),
               tasks: updatedTasks
             });
           }
         }
         
         // Reset enemy with CURRENT level-appropriate HP
-        // For Level 1, it should be 20HP
         return 20 + ((userData?.level || 1) - 1) * 5;
       }
       
