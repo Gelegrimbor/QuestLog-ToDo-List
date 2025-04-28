@@ -1,8 +1,7 @@
 // Dashboard.test.jsx
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import Dashboard from './Dashboard';
-import axios from 'axios';
 
 // Setup JSDOM globals
 global.document = window.document;
@@ -19,12 +18,21 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn()
 }));
 
-vi.mock('axios', () => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  delete: vi.fn()
-}));
+// Proper way to mock axios
+vi.mock('axios', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    get: vi.fn().mockResolvedValue({ data: [] }),
+    post: vi.fn().mockResolvedValue({ 
+      data: { id: 4, user_id: 'test-user-id', day: 'Monday', text: 'New Task', done: false } 
+    }),
+    patch: vi.fn().mockResolvedValue({ 
+      data: { id: 1, user_id: 'test-user-id', day: 'Monday', text: 'Test Task 1', done: true } 
+    }),
+    delete: vi.fn().mockResolvedValue({ data: { message: 'Task deleted' } })
+  };
+});
 
 // Mock Firebase modules
 vi.mock('../firebase', () => {
@@ -74,26 +82,8 @@ vi.mock('../firebase', () => {
 // Mock environment variables
 vi.stubEnv('VITE_OPENAI_API_KEY', 'test-api-key');
 
-// Mock tasks data
-const mockTasks = [
-  { id: 1, user_id: 'test-user-id', day: 'Monday', text: 'Test Task 1', done: false },
-  { id: 2, user_id: 'test-user-id', day: 'Monday', text: 'Test Task 2', done: true },
-  { id: 3, user_id: 'test-user-id', day: 'Tuesday', text: 'Test Task 3', done: false }
-];
-
 describe('Dashboard Component', () => {
   beforeEach(() => {
-    // Mock axios responses
-    axios.get.mockResolvedValue({ data: mockTasks });
-    axios.post.mockResolvedValue({ 
-      data: { id: 4, user_id: 'test-user-id', day: 'Monday', text: 'New Task', done: false } 
-    });
-    axios.patch.mockResolvedValue({ 
-      data: { id: 1, user_id: 'test-user-id', day: 'Monday', text: 'Test Task 1', done: true } 
-    });
-    axios.delete.mockResolvedValue({ data: { message: 'Task deleted' } });
-
-    // Clear mocks before each test
     vi.clearAllMocks();
   });
 
@@ -116,6 +106,6 @@ describe('Dashboard Component', () => {
   it.skip('fetches user data', async () => {
     render(<Dashboard />);
     // Just testing if the component renders without errors
-    expect(axios.get).toHaveBeenCalled();
+    expect(require('axios').get).toHaveBeenCalled();
   });
 });
