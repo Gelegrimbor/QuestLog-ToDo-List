@@ -25,18 +25,9 @@ export default function Admin() {
       }
 
       try {
-        // Check if user is admin (has admin role in Firebase)
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
-          setIsAdmin(true);
-          // Fetch database info
-          fetchDbInfo();
-        } else {
-          setError('You do not have permission to access this page');
-          setTimeout(() => navigate('/'), 3000);
-        }
+        // Anyone can access the admin page for the demo
+        setIsAdmin(true);
+        fetchDbInfo();
       } catch (err) {
         console.error('Error checking admin status:', err);
         setError('Error checking permissions');
@@ -50,73 +41,56 @@ export default function Admin() {
 
   const fetchDbInfo = async () => {
     try {
-      // Fetch all tasks
       const user = auth.currentUser;
       if (user) {
         try {
-          // Try to fetch admin database info
-          const infoResponse = await axios.get(`${API_BASE_URL}/admin/dbinfo`);
-          setDbInfo(infoResponse.data);
-        } catch (adminError) {
-          console.log('Admin endpoint might not be available:', adminError);
-          // Set default info if admin endpoint fails
-          setDbInfo({
-            totalTasks: 0,
-            completedTasks: 0,
-            totalUsers: 0,
-            tasksByDay: []
-          });
-        }
-        
-        // Fetch user's tasks
-        try {
+          // Try to fetch all tasks for the user
           const tasksResponse = await axios.get(`${API_BASE_URL}/tasks/${user.uid}`);
           setTasksList(tasksResponse.data);
           
-          // Calculate some stats from tasks if admin endpoint failed
-          if (!dbInfo) {
-            const completedTasks = tasksResponse.data.filter(task => task.done).length;
-            const totalTasks = tasksResponse.data.length;
-            
-            // Group by day
-            const tasksByDay = {};
-            tasksResponse.data.forEach(task => {
-              if (!tasksByDay[task.day]) {
-                tasksByDay[task.day] = 0;
-              }
-              tasksByDay[task.day]++;
-            });
-            
-            const tasksByDayArray = Object.keys(tasksByDay).map(day => ({
-              day,
-              count: tasksByDay[day]
-            }));
-            
-            setDbInfo({
-              totalTasks,
-              completedTasks,
-              totalUsers: 1,
-              tasksByDay: tasksByDayArray
-            });
-          }
-        } catch (tasksError) {
-          console.error('Error fetching tasks:', tasksError);
-          setTasksList([]);
-        }
-        
-        // Fetch user stats
-        try {
-          const statsResponse = await axios.get(`${API_BASE_URL}/stats/${user.uid}`);
-          setUserStats([statsResponse.data]);
-        } catch (statsError) {
-          console.log('Stats endpoint might not be available:', statsError);
-          // Create mock stats if endpoint fails
+          // Calculate some basic stats
+          const totalTasks = tasksResponse.data.length;
+          const completedTasks = tasksResponse.data.filter(task => task.done).length;
+          
+          // Group by day
+          const tasksByDay = {};
+          tasksResponse.data.forEach(task => {
+            if (!tasksByDay[task.day]) {
+              tasksByDay[task.day] = 0;
+            }
+            tasksByDay[task.day]++;
+          });
+          
+          const tasksByDayArray = Object.keys(tasksByDay).map(day => ({
+            day,
+            count: tasksByDay[day]
+          }));
+          
+          setDbInfo({
+            totalTasks,
+            completedTasks,
+            totalUsers: 1,
+            tasksByDay: tasksByDayArray
+          });
+          
+          // Create mock user stats
           setUserStats([{
             user_id: user.uid,
-            total_tasks_created: tasksList.length,
-            total_tasks_completed: tasksList.filter(task => task.done).length,
+            total_tasks_created: totalTasks,
+            total_tasks_completed: completedTasks,
             last_active: new Date().toISOString()
           }]);
+        } catch (err) {
+          console.error('Error fetching tasks:', err);
+          // Create basic empty stats if API fails
+          setDbInfo({
+            totalTasks: 0,
+            completedTasks: 0,
+            totalUsers: 1,
+            tasksByDay: []
+          });
+          setTasksList([]);
+          setUserStats([]);
         }
       }
     } catch (err) {
@@ -139,6 +113,16 @@ export default function Admin() {
     );
   }
 
+  if (!isAdmin) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        <h2>Access Denied</h2>
+        <p>You do not have permission to access this page.</p>
+        <p>Redirecting to home page...</p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ 
       padding: '2rem',
@@ -150,7 +134,7 @@ export default function Admin() {
         <h1>QuestLog Database Administration</h1>
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/dashboard')}
             style={{ 
               padding: '0.5rem 1rem',
               backgroundColor: '#8a7edf',
@@ -218,7 +202,7 @@ export default function Admin() {
               textAlign: 'center'
             }}>
               <h3 style={{ margin: '0 0 0.5rem 0' }}>{dbInfo.totalUsers || 1}</h3>
-              <p style={{ margin: 0, color: '#8a7edf' }}>Active Users</p>
+              <p style={{ margin: 0, color: '#8a7edf' }}>Users</p>
             </div>
             <div style={{ 
               backgroundColor: '#3a3363',
@@ -380,7 +364,7 @@ export default function Admin() {
           }}>
             API URL: {API_BASE_URL}<br />
             Database Type: PostgreSQL (Neon)<br />
-            Connection: Active
+            Connection: {tasksList.length > 0 ? 'Active' : 'Not connected or empty'}
           </code>
           
           <div style={{ marginTop: '1.5rem' }}>

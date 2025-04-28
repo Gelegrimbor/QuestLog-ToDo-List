@@ -5,8 +5,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import Login from './components/Login';
 import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
-import Admin from './components/Admin';
 import Home from './components/Home';
+import Admin from './components/Admin';
 import './App.css';
 
 function App() {
