@@ -561,3 +561,199 @@ h3 {
   background-color: #e74c3c;
 }
 
+/* Mobile Responsive Styles - Add to your existing CSS */
+
+/* Media query for mobile devices */
+@media screen and (max-width: 768px) {
+  /* Global adjustments */
+  body {
+    overflow-y: auto; /* Allow scrolling */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    height: auto;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+  }
+
+  /* Container adjustments */
+  .page-container {
+    height: auto;
+    min-height: 100vh;
+    padding: 1rem 0.5rem 2rem;
+  }
+
+  .dashboard-container {
+    padding: 0.5rem;
+  }
+  
+  /* Header adjustments */
+  .header {
+    padding: 0.75rem;
+    flex-wrap: wrap;
+  }
+  
+  .logo {
+    font-size: 1.6rem;
+  }
+  
+  .header-right {
+    gap: 0.5rem;
+  }
+
+  /* Dashboard layout fix */
+  .dashboard-flex {
+    flex-direction: column;
+    align-items: center;
+    padding-top: 1rem;
+  }
+  
+  /* Panel adjustments */
+  .left-panel {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    order: 1; /* Reorder to top */
+  }
+  
+  .enemy-zone {
+    width: 100%;
+    max-width: 100%;
+    order: 2; /* Reorder to middle */
+  }
+  
+  .right-panel {
+    width: 100%;
+    align-items: center;
+    margin-top: 1rem;
+    order: 3; /* Reorder to bottom */
+  }
+  
+  /* Day buttons adjustments */
+  .day-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .day-btn {
+    flex: 1 0 40%; /* Two buttons per row */
+    padding: 0.4rem 0.2rem;
+    font-size: 0.9rem;
+    min-width: 110px;
+  }
+
+  /* Enemy image size adjustment */
+  .enemy-img {
+    width: 85%;
+    max-width: 300px;
+    height: auto;
+    margin: 0.5rem auto;
+  }
+
+  /* Form and input adjustments */
+  .auth-container input,
+  .task-dropdown input,
+  .task-column input {
+    width: 90%;
+    max-width: 280px;
+  }
+
+  /* Task grid adjustments */
+  .task-grid {
+    justify-content: center;
+    gap: 0.75rem;
+  }
+  
+  .task-column {
+    width: 90%;
+    max-width: 280px;
+  }
+  
+  /* Welcome popup adjustments */
+  .welcome-popup {
+    width: 90%;
+    max-width: 300px;
+    top: 15%;
+    transform: translate(-50%, -15%);
+  }
+  
+  /* Stats panel adjustments */
+  .stats-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 300px;
+  }
+  
+  /* Task row adjustments */
+  .task-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .task-box {
+    width: 90%;
+    max-width: 280px;
+    margin-bottom: 0.75rem;
+  }
+  
+  /* Button adjustments */
+  .play-button {
+    margin-top: 1.5rem;
+  }
+  
+  /* Feature section adjustments */
+  .feature-icons {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .feature-tile {
+    max-width: 120px;
+  }
+}
+
+/* Additional adjustments for extra small screens */
+@media screen and (max-width: 480px) {
+  /* Further reduce sizes */
+  h1 {
+    font-size: 1.8rem;
+  }
+  
+  .logo {
+    font-size: 1.4rem;
+  }
+  
+  /* Header buttons for very small screens */
+  .admin-btn,
+  .chat-ai-btn,
+  .logout-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  
+  /* Day buttons - make them stack vertically on very small screens */
+  .day-btn {
+    flex: 1 0 100%; /* One button per row */
+  }
+  
+  /* Top bar adjustments */
+  .top-bar {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .top-right-buttons {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 0.5rem;
+  }
+}
