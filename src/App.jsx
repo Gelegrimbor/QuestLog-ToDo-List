@@ -35,27 +35,10 @@ function App() {
     return (user && isAdmin) ? element : <Navigate to="/dashboard" />;
   };
 
-  const handleLogout = () => {
-    auth.signOut().then(() => {
-      toast.success("Logged out successfully!");
-      setTimeout(() => window.location.href = '/', 1500);
-    });
-  };
-
   return (
     <Router>
       <div className="app">
-        {user && (
-          <header>
-            <div className="logo">QuestLog</div>
-            <nav>
-              {isAdmin && <a href="/admin" className="admin-btn">Admin</a>}
-              <a href="/chat" className="chat-ai-btn">Chat AI</a>
-              <button onClick={handleLogout} className="logout-btn">Logout</button>
-            </nav>
-          </header>
-        )}
-
+        {/* 🧼 Header removed to avoid duplication */}
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
@@ -63,7 +46,6 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
           <Route path="/admin" element={<AdminRoute element={<Admin />} />} />
         </Routes>
-
         <ToastContainer position="top-right" autoClose={3000} theme="dark" />
       </div>
     </Router>

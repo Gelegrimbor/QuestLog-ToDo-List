@@ -155,10 +155,14 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    toast.success("Logged out successfully!");
-    navigate('/');
-  };
+    try {
+      await signOut(auth);
+      toast.success('Logged out successfully!');
+      setTimeout(() => navigate('/'), 1000); // smooth delay for toast
+    } catch (error) {
+      toast.error('Failed to log out');
+    }
+  }
 
   const toggleStats = () => setMyStats((prev) => !prev);
   

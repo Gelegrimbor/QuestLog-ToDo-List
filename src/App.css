@@ -522,3 +522,41 @@ h3 {
 .right-btn {
   margin-top: 1rem;
 }
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1e1a3a;
+  padding: 1rem 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.logo {
+  color: #f3d41b;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.header-right {
+  display: flex;
+  gap: 1rem;
+}
+
+.admin-btn,
+.chat-ai-btn,
+.logout-btn {
+  background-color: #8a7edf;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.logout-btn {
+  background-color: #e74c3c;
+}
