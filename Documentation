@@ -1,0 +1,382 @@
+# QuestLog ToDo List - Documentation
+
+## Table of Contents
+1. [Project Overview](#project-overview)
+2. [Technology Stack](#technology-stack)
+3. [Setup and Installation](#setup-and-installation)
+4. [Project Structure](#project-structure)
+5. [Component Architecture](#component-architecture)
+6. [State Management](#state-management)
+7. [Routing](#routing)
+8. [Styling](#styling)
+9. [Type System](#type-system)
+10. [Testing](#testing)
+11. [Building for Production](#building-for-production)
+12. [Performance Considerations](#performance-considerations)
+13. [Future Enhancements](#future-enhancements)
+
+## Project Overview
+
+QuestLog is a gamified ToDo list application built with React, TypeScript, and Vite. It transforms ordinary tasks into exciting quests, making productivity more engaging and fun through gamification elements like experience points, levels, and achievements.
+
+The application helps users stay motivated by turning everyday tasks into rewarding experiences, tracking progress, and providing visual feedback on accomplishments.
+
+## Technology Stack
+
+### Core Technologies
+- **React 18**: For building the user interface
+- **TypeScript**: For type safety and improved developer experience
+- **Vite**: For fast development and optimized builds
+
+### Additional Libraries
+- **React Router**: For client-side routing
+- **React Context API/Redux**: For state management
+- **Local Storage/Firebase**: For data persistence
+- **CSS/SCSS Modules**: For component styling
+- **Vitest + React Testing Library**: For testing
+
+## Setup and Installation
+
+### Development Environment Requirements
+- Node.js (v16 or newer)
+- npm or yarn
+
+### Installation Steps
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Gelegrimbor/QuestLog-ToDo-List.git
+   cd QuestLog-ToDo-List
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   yarn
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+4. The application will be available at `http://localhost:5173`
+
+### Available Scripts
+- `npm run dev`: Start the development server
+- `npm run build`: Build the application for production
+- `npm run preview`: Preview the production build locally
+- `npm run test`: Run tests
+- `npm run lint`: Lint the codebase using ESLint
+- `npm run format`: Format code using Prettier
+
+## Project Structure
+
+```
+QuestLog-ToDo-List/
+├── public/                 # Static assets
+├── src/
+│   ├── assets/             # Images, fonts, etc.
+│   ├── components/         # Reusable React components
+│   │   ├── common/         # Generic UI components
+│   │   ├── layout/         # Layout components
+│   │   └── feature/        # Feature-specific components
+│   ├── context/            # React Context providers
+│   ├── hooks/              # Custom React hooks
+│   ├── pages/              # Page components
+│   ├── services/           # API services and utilities
+│   ├── styles/             # Global styles
+│   ├── types/              # TypeScript type definitions
+│   ├── utils/              # Utility functions
+│   ├── App.tsx             # Main App component
+│   ├── main.tsx            # Entry point
+│   └── vite-env.d.ts       # Vite type declarations
+├── .eslintrc.js            # ESLint configuration
+├── index.html              # HTML template
+├── package.json            # Dependencies and scripts
+├── tsconfig.json           # TypeScript configuration
+├── vite.config.ts          # Vite configuration
+└── README.md               # Project documentation
+```
+
+## Component Architecture
+
+QuestLog follows a component-based architecture, organizing components into logical categories:
+
+### Component Types
+
+1. **Page Components**: Top-level components rendered by the router, representing entire pages or views.
+   - Example: `HomePage.tsx`, `QuestDetailsPage.tsx`
+
+2. **Feature Components**: Components specific to application features.
+   - Example: `QuestList.tsx`, `QuestCreationForm.tsx`
+
+3. **Common Components**: Reusable UI components used across the application.
+   - Example: `Button.tsx`, `Modal.tsx`
+
+4. **Layout Components**: Components that define the structure of the UI.
+   - Example: `Header.tsx`, `Footer.tsx`, `Sidebar.tsx`
+
+### Component Best Practices
+
+- Use functional components with hooks
+- Keep components focused on a single responsibility
+- Extract complex logic into custom hooks
+- Maintain consistent prop interfaces using TypeScript
+
+## State Management
+
+QuestLog uses a combination of local component state and global state management:
+
+### Local State
+- **React useState**: For component-specific state
+- **React useReducer**: For more complex component state logic
+
+### Global State
+- **React Context API**: For sharing state across components
+- Organized into domain-specific contexts (e.g., `QuestContext`, `UserContext`)
+
+### State Structure
+```typescript
+// Example Quest State
+interface QuestState {
+  quests: Quest[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+// Example User State
+interface UserState {
+  user: User | null;
+  experience: number;
+  level: number;
+  achievements: Achievement[];
+}
+```
+
+## Routing
+
+QuestLog uses React Router for client-side routing:
+
+### Route Structure
+```typescript
+const routes = [
+  {
+    path: '/',
+    element: <HomePage />,
+  },
+  {
+    path: '/quests',
+    element: <QuestsPage />,
+  },
+  {
+    path: '/quests/:id',
+    element: <QuestDetailsPage />,
+  },
+  {
+    path: '/profile',
+    element: <ProfilePage />,
+  },
+  {
+    path: '/achievements',
+    element: <AchievementsPage />,
+  },
+  {
+    path: '*',
+    element: <NotFoundPage />,
+  }
+];
+```
+
+## Styling
+
+QuestLog uses CSS/SCSS modules for component styling:
+
+### Styling Approach
+- Component-scoped CSS using modules
+- Global styles for typography, variables, and reset
+- Theme support for light/dark mode
+
+### Example Component with Styles
+```typescript
+// Button.tsx
+import styles from './Button.module.scss';
+
+interface ButtonProps {
+  variant?: 'primary' | 'secondary';
+  // other props
+}
+
+export const Button: React.FC<ButtonProps> = ({ 
+  variant = 'primary',
+  children,
+  ...props
+}) => {
+  return (
+    <button 
+      className={`${styles.button} ${styles[variant]}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+```
+
+## Type System
+
+QuestLog leverages TypeScript for type safety:
+
+### Core Types
+```typescript
+// Quest
+interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  dueDate?: Date;
+  priority: 'low' | 'medium' | 'high';
+  category: string;
+  xpReward: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// User
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  experience: number;
+  level: number;
+  streakDays: number;
+  createdAt: Date;
+  lastActive: Date;
+}
+
+// Achievement
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  unlockedAt?: Date;
+  icon: string;
+  requirement: {
+    type: 'quests_completed' | 'streak_days' | 'level_reached';
+    value: number;
+  };
+}
+```
+
+### Type Best Practices
+- Define interfaces for all components' props
+- Use discriminated unions for complex state
+- Avoid `any` type when possible
+- Create utility types for common patterns
+
+## Testing
+
+QuestLog uses Vitest and React Testing Library for testing:
+
+### Testing Approach
+- **Unit Tests**: For individual components and utility functions
+- **Integration Tests**: For component interactions
+- **Mock Services**: For external dependencies
+
+### Example Test
+```typescript
+import { render, screen, fireEvent } from '@testing-library/react';
+import { QuestItem } from './QuestItem';
+
+describe('QuestItem', () => {
+  const mockQuest = {
+    id: '1',
+    title: 'Test Quest',
+    description: 'Test Description',
+    completed: false,
+    priority: 'medium',
+    category: 'work',
+    xpReward: 10,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it('renders quest information correctly', () => {
+    render(<QuestItem quest={mockQuest} />);
+    
+    expect(screen.getByText('Test Quest')).toBeInTheDocument();
+    expect(screen.getByText('Test Description')).toBeInTheDocument();
+    expect(screen.getByText('10 XP')).toBeInTheDocument();
+  });
+
+  it('toggles completion state when clicked', () => {
+    const onToggle = vi.fn();
+    render(<QuestItem quest={mockQuest} onToggleComplete={onToggle} />);
+    
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(onToggle).toHaveBeenCalledWith('1');
+  });
+});
+```
+
+## Building for Production
+
+### Build Process
+1. Run the build command:
+   ```bash
+   npm run build
+   # or
+   yarn build
+   ```
+
+2. The build artifacts will be in the `dist/` directory
+
+### Optimization Strategies
+- Code splitting for better performance
+- Asset optimization for faster loading
+- Progressive enhancement for better user experience
+
+### Deployment Options
+- **Static Hosting**: Netlify, Vercel, GitHub Pages
+- **Server-Based**: AWS, DigitalOcean, Heroku
+
+## Performance Considerations
+
+QuestLog implements several performance optimizations:
+
+### React Optimizations
+- Component memoization with `React.memo`
+- `useMemo` and `useCallback` for expensive calculations and functions
+- Virtualized lists for large data sets
+
+### Load Time Optimizations
+- Lazy loading for routes and components
+- Image optimization and responsive images
+- Preloading critical resources
+
+### Monitoring and Metrics
+- Lighthouse scores tracking
+- Web Vitals monitoring
+- Error tracking
+
+## Future Enhancements
+
+Potential future improvements for QuestLog:
+
+### Technical Enhancements
+- PWA support for offline capabilities
+- Server-side rendering for improved SEO
+- WebSocket integration for real-time updates
+
+### Feature Enhancements
+- Social features (friends, teams)
+- Integrations with calendar apps
+- Advanced analytics for productivity insights
+- Custom themes and personalization options
+
+---
+
+This documentation provides a comprehensive overview of the QuestLog ToDo List application. For specific implementation details, refer to the code and inline documentation.
