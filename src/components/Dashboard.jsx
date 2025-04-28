@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { toast } from 'react-toastify';
 import { signOut } from 'firebase/auth';
 import axios from 'axios'; // Make sure to install axios: npm install axios
 
@@ -155,6 +156,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    toast.success("Logged out successfully!");
     navigate('/');
   };
 

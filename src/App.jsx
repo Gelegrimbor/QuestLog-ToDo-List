@@ -6,6 +6,8 @@ import Login from './components/Login';
 import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import Admin from './components/Admin';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 
 function App() {
@@ -21,25 +23,23 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Check if user is admin
   const isAdmin = user && user.email === "admin@questlog.com";
 
-  // Protected route component
   const ProtectedRoute = ({ element }) => {
     if (loading) return <div></div>;
     return user ? element : <Navigate to="/login" />;
   };
 
-  // Admin route component
   const AdminRoute = ({ element }) => {
     if (loading) return <div></div>;
     return (user && isAdmin) ? element : <Navigate to="/dashboard" />;
   };
 
   const handleLogout = () => {
-    auth.signOut();
-    // Redirect to home page instead of login page
-    window.location.href = '/';
+    auth.signOut().then(() => {
+      toast.success("Logged out successfully!");
+      setTimeout(() => window.location.href = '/', 1500);
+    });
   };
 
   return (
@@ -49,10 +49,7 @@ function App() {
           <header>
             <div className="logo">QuestLog</div>
             <nav>
-              {/* Only show Admin button if user email is admin@questlog.com */}
-              {isAdmin && (
-                <a href="/admin" className="admin-btn">Admin</a>
-              )}
+              {isAdmin && <a href="/admin" className="admin-btn">Admin</a>}
               <a href="/chat" className="chat-ai-btn">Chat AI</a>
               <button onClick={handleLogout} className="logout-btn">Logout</button>
             </nav>
@@ -64,9 +61,10 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
-          {/* Protected admin route - only accessible if user email is admin@questlog.com */}
           <Route path="/admin" element={<AdminRoute element={<Admin />} />} />
         </Routes>
+
+        <ToastContainer position="top-right" autoClose={3000} theme="dark" />
       </div>
     </Router>
   );
