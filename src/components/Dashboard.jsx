@@ -24,7 +24,6 @@ export default function Dashboard() {
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const [apiError, setApiError] = useState('');
   const [aiError, setAiError] = useState('');
   const navigate = useNavigate();
 
@@ -43,7 +42,7 @@ export default function Dashboard() {
     return level * 2; // Level 1: 2 damage, Level 2: 4 damage, Level 3: 6 damage, etc.
   };
 
-  // Separate async function for Firestore updates
+  // Helper function for Firestore updates to avoid await in non-async functions
   const updateUserFirestore = async (userData) => {
     if (auth.currentUser) {
       const uid = auth.currentUser.uid;
@@ -79,10 +78,14 @@ export default function Dashboard() {
             // Fetch tasks from the Replit API
             fetchAllTasks(user.uid);
           }
+          
+          // Set tasks if they exist
+          if (data.tasks) {
+            setTasks(data.tasks);
+          }
         }
       } catch (err) {
         console.error(err);
-        setApiError("Failed to load user data");
       } finally {
         setLoading(false);
       }
@@ -117,15 +120,7 @@ export default function Dashboard() {
       setTasks(tasksObj);
     } catch (err) {
       console.error("Error fetching tasks:", err);
-      
-      // Fallback to empty tasks if API fails
-      const emptyTasksObj = {};
-      days.forEach(day => {
-        emptyTasksObj[day] = [];
-      });
-      setTasks(emptyTasksObj);
-      
-      setApiError("Failed to load tasks from the database");
+      // If API fails, continue with any existing tasks from Firestore
     }
   };
 
@@ -175,7 +170,6 @@ export default function Dashboard() {
     if (!newTask.trim()) return;
     
     const userId = auth.currentUser.uid;
-    setApiError('');
     
     try {
       // Create task in the SQL database via API
@@ -201,25 +195,24 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Error adding task:", err);
       
-      // Fallback approach - add to local state even if API fails
-      const mockId = Date.now(); // Use timestamp as a temporary ID
-      const newTaskObj = {
-        id: mockId,
-        text: newTask,
-        done: false
+      // Fallback to previous Firebase approach if API fails
+      const updated = {
+        ...tasks,
+        [selectedDay]: [...(tasks[selectedDay] || []), { text: newTask, done: false }],
       };
-      
-      setTasks(prev => ({
-        ...prev,
-        [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
-      }));
-      
+      setTasks(updated);
       setNewTask('');
-      setApiError("Task added locally only. Database connection failed.");
+      
+      // Save tasks to database
+      if (userData && auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const userRef = doc(db, 'users', uid);
+        updateUserFirestore({ tasks: updated });
+      }
     }
   };
 
-  // Updated to use API
+  // Add a task from AI suggestions
   const addSuggestionAsTask = async (suggestion) => {
     const userId = auth.currentUser.uid;
     
@@ -245,226 +238,207 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Error adding suggestion as task:", err);
       
-      // Fallback approach - add to local state even if API fails
-      const mockId = Date.now(); // Use timestamp as a temporary ID
-      const newTaskObj = {
-        id: mockId,
-        text: suggestion,
-        done: false
+      // Fallback to previous Firebase approach if API fails
+      const updated = {
+        ...tasks,
+        [selectedDay]: [...(tasks[selectedDay] || []), { text: suggestion, done: false }],
       };
+      setTasks(updated);
       
-      setTasks(prev => ({
-        ...prev,
-        [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
-      }));
-      
-      setApiError("Task added locally only. Database connection failed.");
+      // Save tasks to database
+      if (userData && auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const userRef = doc(db, 'users', uid);
+        updateUserFirestore({ tasks: updated });
+      }
     }
   };
 
-  // Updated to use API - now uses task ID instead of index
   const handleComplete = async (taskId) => {
     const level = userData?.level || 1;
     const damage = getDamagePerTask(level);
     
     try {
       // Toggle the task completion status via API
-      const response = await axios.patch(`${API_BASE_URL}/tasks/${taskId}/toggle`);
-      const updatedTask = response.data;
+      await axios.patch(`${API_BASE_URL}/tasks/${taskId}/toggle`);
       
-      // Only proceed if the task was marked as done (not unmarked)
-      if (updatedTask.done) {
-        // Update local tasks state
-        const updatedTasks = { ...tasks };
-        updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task => 
-          task.id === taskId ? { ...task, done: true } : task
-        );
+      // Update the tasks in state
+      const updatedTasks = { ...tasks };
+      updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task => 
+        task.id === taskId ? { ...task, done: true } : task
+      );
+      
+      // Move completed tasks to the bottom
+      updatedTasks[selectedDay].sort((a, b) => {
+        if (a.done === b.done) return 0;
+        return a.done ? 1 : -1;
+      });
+      
+      setTasks(updatedTasks);
+      
+      // Update streak
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to midnight
+      
+      let streak = userData?.stats?.streak || 0;
+      const lastCompletionDate = userData?.lastCompletedDate ? new Date(userData.lastCompletedDate) : null;
+      
+      // If we have a last completion date
+      if (lastCompletionDate) {
+        lastCompletionDate.setHours(0, 0, 0, 0); // Normalize to midnight
         
-        // Sort to move completed tasks to the bottom
-        updatedTasks[selectedDay].sort((a, b) => {
-          if (a.done === b.done) return 0;
-          return a.done ? 1 : -1;
-        });
+        // Calculate difference in days
+        const timeDiff = today.getTime() - lastCompletionDate.getTime();
+        const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
         
-        setTasks(updatedTasks);
-        
-        // Update streak
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize to midnight
-        
-        let streak = userData?.stats?.streak || 0;
-        const lastCompletionDate = userData?.lastCompletedDate ? new Date(userData.lastCompletedDate) : null;
-        
-        // If we have a last completion date
-        if (lastCompletionDate) {
-          lastCompletionDate.setHours(0, 0, 0, 0); // Normalize to midnight
-          
-          // Calculate difference in days
-          const timeDiff = today.getTime() - lastCompletionDate.getTime();
-          const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
-          
-          if (daysDiff === 1) {
-            // Completed yesterday - increase streak
-            streak += 1;
-          } else if (daysDiff > 1) {
-            // Missed some days - reset streak
-            streak = 1;
-          }
-          // If daysDiff is 0, it's the same day, keep streak the same
-        } else {
-          // First completion ever
+        if (daysDiff === 1) {
+          // Completed yesterday - increase streak
+          streak += 1;
+        } else if (daysDiff > 1) {
+          // Missed some days - reset streak
           streak = 1;
         }
+        // If daysDiff is 0, it's the same day, keep streak the same
+      } else {
+        // First completion ever
+        streak = 1;
+      }
+    
+      // Update Firestore with streak and last completion date
+      updateUserFirestore({
+        'stats.streak': streak,
+        lastCompletedDate: today.toISOString(),
+        tasks: updatedTasks
+      });
+      
+      setEnemyHP((prev) => {
+        const newHP = prev - damage;
         
-        // Save updated streak and last completion date to Firestore (no await)
-        const streakData = {
-          'stats.streak': streak,
-          lastCompletedDate: today.toISOString()
-        };
-        updateUserFirestore(streakData);
-        
-        setEnemyHP((prev) => {
-          const newHP = prev - damage;
+        if (userData) {
+          const updatedStats = {
+            ...userData.stats,
+            tasksCompleted: (userData.stats?.tasksCompleted || 0) + 1,
+            totalDamage: (userData.stats?.totalDamage || 0) + damage,
+            streak: streak
+          };
           
-          if (userData) {
-            const updatedStats = {
-              ...userData.stats,
-              tasksCompleted: (userData.stats?.tasksCompleted || 0) + 1,
-              totalDamage: (userData.stats?.totalDamage || 0) + damage,
-              streak: streak
-            };
+          setUserData((prev) => ({ 
+            ...prev, 
+            stats: updatedStats,
+            lastCompletedDate: today.toISOString()
+          }));
+        }
+        
+        setDamageText(`-${damage} HP`);
+        setTimeout(() => setDamageText(''), 1000);
+        
+        if (newHP <= 0) {
+          // Enemy is defeated, award XP
+          const xpGain = 20; // Fixed XP per enemy
+          const currentXP = userData?.xpTotal || 0;
+          const requiredXP = userData?.xpRequired || 20;
+          const newTotalXP = currentXP + xpGain;
+          
+          if (newTotalXP >= requiredXP) {
+            // Level up!
+            const newLevel = (userData?.level || 1) + 1;
+            const newRequiredXP = getRequiredXP(newLevel);
+            const xpRemaining = newTotalXP - requiredXP;
             
-            setUserData((prev) => ({ 
-              ...prev, 
-              stats: updatedStats,
+            setUserData(prev => ({
+              ...prev,
+              level: newLevel,
+              xpTotal: xpRemaining,
+              xpRequired: newRequiredXP,
+              stats: {
+                ...prev.stats,
+                streak: streak
+              },
               lastCompletedDate: today.toISOString()
             }));
+            
+            // Update in Firestore (separated to avoid await in setState)
+            updateUserFirestore({
+              level: newLevel,
+              xpTotal: xpRemaining,
+              xpRequired: newRequiredXP,
+              'stats.streak': streak,
+              lastCompletedDate: today.toISOString(),
+              tasks: updatedTasks
+            });
+            
+            // Show level up animation
+            setShowLevelUp(true);
+            setTimeout(() => setShowLevelUp(false), 3000);
+            
+            // New enemy HP based on NEW level (after level up)
+            return 20 + ((newLevel - 1) * 10); // Level 1: 20HP, Level 2: 30HP, Level 3: 40HP
+          } else {
+            // Just update XP
+            setUserData(prev => ({
+              ...prev,
+              xpTotal: newTotalXP,
+              stats: {
+                ...prev.stats,
+                streak: streak
+              },
+              lastCompletedDate: today.toISOString()
+            }));
+            
+            // Update in Firestore (separated to avoid await in setState)
+            updateUserFirestore({
+              xpTotal: newTotalXP,
+              'stats.streak': streak,
+              lastCompletedDate: today.toISOString(),
+              tasks: updatedTasks
+            });
           }
           
-          setDamageText(`-${damage} HP`);
-          setTimeout(() => setDamageText(''), 1000);
-          
-          if (newHP <= 0) {
-            // Enemy is defeated, award XP
-            const xpGain = 20; // Fixed XP per enemy
-            const currentXP = userData?.xpTotal || 0;
-            const requiredXP = userData?.xpRequired || 20;
-            const newTotalXP = currentXP + xpGain;
-            
-            if (newTotalXP >= requiredXP) {
-              // Level up!
-              const newLevel = (userData?.level || 1) + 1;
-              const newRequiredXP = getRequiredXP(newLevel);
-              const xpRemaining = newTotalXP - requiredXP;
-              
-              setUserData(prev => ({
-                ...prev,
-                level: newLevel,
-                xpTotal: xpRemaining,
-                xpRequired: newRequiredXP,
-                stats: {
-                  ...prev.stats,
-                  streak: streak
-                },
-                lastCompletedDate: today.toISOString()
-              }));
-              
-              // Update in Firestore (no await)
-              const levelUpData = {
-                level: newLevel,
-                xpTotal: xpRemaining,
-                xpRequired: newRequiredXP,
-                'stats.streak': streak,
-                lastCompletedDate: today.toISOString()
-              };
-              updateUserFirestore(levelUpData);
-              
-              // Show level up animation
-              setShowLevelUp(true);
-              setTimeout(() => setShowLevelUp(false), 3000);
-              
-              // New enemy HP based on NEW level (after level up)
-              return 20 + ((newLevel - 1) * 10); // Level 1: 20HP, Level 2: 30HP, Level 3: 40HP
-            } else {
-              // Just update XP
-              setUserData(prev => ({
-                ...prev,
-                xpTotal: newTotalXP,
-                stats: {
-                  ...prev.stats,
-                  streak: streak
-                },
-                lastCompletedDate: today.toISOString()
-              }));
-              
-              // Update in Firestore (no await)
-              const xpData = {
-                xpTotal: newTotalXP,
-                'stats.streak': streak,
-                lastCompletedDate: today.toISOString()
-              };
-              updateUserFirestore(xpData);
-            }
-            
-            // Reset enemy with CURRENT level-appropriate HP
-            return 20 + ((userData?.level || 1) - 1) * 10;
-          }
-          
-          return newHP;
-        });
-      } else {
-        // Task was unmarked as done, just update the UI
-        const updatedTasks = { ...tasks };
-        updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task => 
-          task.id === taskId ? { ...task, done: false } : task
-        );
-        setTasks(updatedTasks);
-      }
+          // Reset enemy with CURRENT level-appropriate HP
+          return 20 + ((userData?.level || 1) - 1) * 10;
+        }
+        
+        return newHP;
+      });
     } catch (err) {
       console.error("Error completing task:", err);
       
-      // Fallback - update local state even if API fails
-      const updatedTasks = { ...tasks };
-      const taskToToggle = updatedTasks[selectedDay].find(t => t.id === taskId);
+      // Fallback to previous Firebase approach if API fails
+      // Mark task as complete
+      const index = tasks[selectedDay].findIndex(task => task.id === taskId);
+      if (index === -1) return;
       
-      if (taskToToggle) {
-        // Toggle the task locally
-        taskToToggle.done = !taskToToggle.done;
-        
-        // If task was marked as complete, proceed with game mechanics
-        if (taskToToggle.done) {
-          // Sort to move completed tasks to the bottom
-          updatedTasks[selectedDay].sort((a, b) => {
-            if (a.done === b.done) return 0;
-            return a.done ? 1 : -1;
-          });
-          
-          setTasks(updatedTasks);
-          
-          // Apply damage to enemy
-          setEnemyHP(prev => Math.max(0, prev - damage));
-          setDamageText(`-${damage} HP`);
-          setTimeout(() => setDamageText(''), 1000);
-          
-          // Update user stats in Firebase only
-          const today = new Date();
-          const statsData = {
-            'stats.tasksCompleted': (userData?.stats?.tasksCompleted || 0) + 1,
-            'stats.totalDamage': (userData?.stats?.totalDamage || 0) + damage,
-            lastCompletedDate: today.toISOString()
-          };
-          updateUserFirestore(statsData);
-        } else {
-          // Just update the UI for unmarking
-          setTasks(updatedTasks);
-        }
-      }
+      const taskToComplete = tasks[selectedDay][index];
+      const otherIncompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && !t.done);
+      const otherCompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && t.done);
       
-      setApiError("Task updated locally only. Database connection failed.");
+      const updatedTasks = {
+        ...tasks,
+        [selectedDay]: [
+          ...otherIncompleteTasks,
+          ...otherCompleteTasks,
+          { ...taskToComplete, done: true }
+        ]
+      };
+      
+      setTasks(updatedTasks);
+      
+      // Apply damage
+      setEnemyHP(prev => prev - damage);
+      setDamageText(`-${damage} HP`);
+      setTimeout(() => setDamageText(''), 1000);
+      
+      // Update Firestore
+      const today = new Date();
+      updateUserFirestore({
+        'stats.tasksCompleted': (userData.stats?.tasksCompleted || 0) + 1,
+        'stats.totalDamage': (userData.stats?.totalDamage || 0) + damage,
+        lastCompletedDate: today.toISOString(),
+        tasks: updatedTasks
+      });
     }
   };
 
-  // Updated to use API
   const handleDelete = async (taskId) => {
     try {
       // Delete from the API
@@ -479,14 +453,20 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Error deleting task:", err);
       
-      // Fallback - delete from local state even if API fails
-      setTasks(prev => {
-        const updated = { ...prev };
-        updated[selectedDay] = updated[selectedDay].filter(task => task.id !== taskId);
-        return updated;
-      });
+      // Fallback to previous Firebase approach if API fails
+      const index = tasks[selectedDay].findIndex(task => task.id === taskId);
+      if (index === -1) return;
       
-      setApiError("Task deleted locally only. Database connection failed.");
+      const updated = tasks[selectedDay].filter((_, i) => i !== index);
+      const updatedTasks = { ...tasks, [selectedDay]: updated };
+      setTasks(updatedTasks);
+      
+      // Update Firestore
+      if (userData && auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const userRef = doc(db, 'users', uid);
+        updateUserFirestore({ tasks: updatedTasks });
+      }
     }
   };
 
@@ -600,13 +580,6 @@ export default function Dashboard() {
           0% { opacity: 1; transform: translate(-50%, -50%); }
           100% { opacity: 0; transform: translate(-50%, -120%); }
         }
-
-        /* Level up animation */
-        @keyframes level-up-pulse {
-          0% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.2); opacity: 0.8; }
-          100% { transform: scale(1); opacity: 1; }
-        }
       `}
       </style>
 
@@ -664,18 +637,6 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
-
-      {apiError && (
-        <div style={{
-          backgroundColor: '#e74c3c',
-          color: 'white',
-          padding: '0.8rem',
-          borderRadius: '6px',
-          marginBottom: '1rem'
-        }}>
-          {apiError}
-        </div>
-      )}
 
       {showLevelUp && (
         <div style={{
@@ -837,8 +798,8 @@ export default function Dashboard() {
                     flexDirection: 'column',
                     gap: '0.4rem'
                   }}>
-                    {(tasks[selectedDay] || []).map((task) => (
-                      <div key={task.id} style={{
+                    {(tasks[selectedDay] || []).map((task, i) => (
+                      <div key={i} style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -855,11 +816,31 @@ export default function Dashboard() {
                           {task.text}
                         </span>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {!task.done && (
+                            <button 
+                              onClick={() => handleComplete(task.id || i)}
+                              style={{ 
+                                backgroundColor: '#4cd3c2',
+                                color: '#222',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              ✓
+                            </button>
+                          )}
                           <button 
-                            onClick={() => handleComplete(task.id)}
+                            onClick={() => handleDelete(task.id || i)}
                             style={{ 
-                              backgroundColor: task.done ? '#443d82' : '#4cd3c2',
-                              color: task.done ? '#8a7edf' : '#222',
+                              backgroundColor: '#e74c3c',
+                              color: 'white',
                               width: '32px',
                               height: '32px',
                               borderRadius: '6px',
