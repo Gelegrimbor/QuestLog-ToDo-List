@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import axios from 'axios'; // Make sure to install axios: npm install axios
 
-const API_BASE_URL = 'https://4e3dbc44-01c6-46ee-9d9e-cc5e5c74995c-00-189guujsr3aay.sisko.replit.dev';
+// Your Replit API URL
+const API_BASE_URL = 'https://4e3dbc44-01c6-46ee-9d9e-cc5e5c74995c-00-189guujsr3aay.sisko.replit.dev/api';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,7 @@ export default function Dashboard() {
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [aiError, setAiError] = useState('');
   const navigate = useNavigate();
 
@@ -38,6 +41,15 @@ export default function Dashboard() {
   // Get damage based on level
   const getDamagePerTask = (level) => {
     return level * 2; // Level 1: 2 damage, Level 2: 4 damage, Level 3: 6 damage, etc.
+  };
+
+  // Separate async function for Firestore updates
+  const updateUserFirestore = async (userData) => {
+    if (auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, userData);
+    }
   };
 
   useEffect(() => {
@@ -59,25 +71,63 @@ export default function Dashboard() {
             
             // Set enemy HP based on level
             // For level 1: 20 HP
-            // For level 2: 25 HP
-            // For level 3: 30 HP, etc.
-            const currentHP = data.currentEnemyHP || (20 + ((data.level || 1) - 1) * 5);
+            // For level 2: 30 HP
+            // For level 3: 40 HP, etc.
+            const currentHP = data.currentEnemyHP || (20 + ((data.level || 1) - 1) * 10);
             setEnemyHP(currentHP);
-          }
-          
-          // Set tasks if they exist
-          if (data.tasks) {
-            setTasks(data.tasks);
+            
+            // Fetch tasks from the Replit API
+            fetchAllTasks(user.uid);
           }
         }
       } catch (err) {
         console.error(err);
+        setApiError("Failed to load user data");
       } finally {
         setLoading(false);
       }
     };
     checkUserStatus();
   }, [navigate]);
+
+  // New function to fetch all tasks from the API
+  const fetchAllTasks = async (userId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/tasks/${userId}`);
+      
+      // Group tasks by day
+      const tasksObj = {};
+      
+      // Initialize empty arrays for each day
+      days.forEach(day => {
+        tasksObj[day] = [];
+      });
+      
+      // Populate with tasks from API
+      response.data.forEach(task => {
+        if (tasksObj[task.day]) {
+          tasksObj[task.day].push({
+            id: task.id,
+            text: task.text,
+            done: task.done
+          });
+        }
+      });
+      
+      setTasks(tasksObj);
+    } catch (err) {
+      console.error("Error fetching tasks:", err);
+      
+      // Fallback to empty tasks if API fails
+      const emptyTasksObj = {};
+      days.forEach(day => {
+        emptyTasksObj[day] = [];
+      });
+      setTasks(emptyTasksObj);
+      
+      setApiError("Failed to load tasks from the database");
+    }
+  };
 
   const handleUsernameSubmit = async () => {
     const uid = auth.currentUser.uid;
@@ -114,218 +164,333 @@ export default function Dashboard() {
   };
 
   const toggleStats = () => setMyStats((prev) => !prev);
+  
   const toggleAI = () => {
     setShowAI((prev) => !prev);
-    // Clear any previous errors when opening/closing
     setAiError('');
   };
 
-  const handleAddTask = () => {
+  // Updated to use API
+  const handleAddTask = async () => {
     if (!newTask.trim()) return;
-    const updated = {
-      ...tasks,
-      [selectedDay]: [...(tasks[selectedDay] || []), { text: newTask, done: false }],
-    };
-    setTasks(updated);
-    setNewTask('');
     
-    // Save tasks to database
-    if (userData && auth.currentUser) {
-      const uid = auth.currentUser.uid;
-      const userRef = doc(db, 'users', uid);
-      updateDoc(userRef, { tasks: updated });
+    const userId = auth.currentUser.uid;
+    setApiError('');
+    
+    try {
+      // Create task in the SQL database via API
+      const response = await axios.post(`${API_BASE_URL}/tasks`, {
+        userId,
+        day: selectedDay,
+        text: newTask
+      });
+      
+      const newTaskObj = {
+        id: response.data.id,
+        text: response.data.text,
+        done: response.data.done
+      };
+      
+      // Update local state
+      setTasks(prev => ({
+        ...prev,
+        [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
+      }));
+      
+      setNewTask('');
+    } catch (err) {
+      console.error("Error adding task:", err);
+      
+      // Fallback approach - add to local state even if API fails
+      const mockId = Date.now(); // Use timestamp as a temporary ID
+      const newTaskObj = {
+        id: mockId,
+        text: newTask,
+        done: false
+      };
+      
+      setTasks(prev => ({
+        ...prev,
+        [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
+      }));
+      
+      setNewTask('');
+      setApiError("Task added locally only. Database connection failed.");
     }
   };
 
-  // Add a task from AI suggestions
-  const addSuggestionAsTask = (suggestion) => {
-    const updated = {
-      ...tasks,
-      [selectedDay]: [...(tasks[selectedDay] || []), { text: suggestion, done: false }],
-    };
-    setTasks(updated);
+  // Updated to use API
+  const addSuggestionAsTask = async (suggestion) => {
+    const userId = auth.currentUser.uid;
     
-    // Save tasks to database
-    if (userData && auth.currentUser) {
-      const uid = auth.currentUser.uid;
-      const userRef = doc(db, 'users', uid);
-      updateDoc(userRef, { tasks: updated });
+    try {
+      // Create task in the SQL database via API
+      const response = await axios.post(`${API_BASE_URL}/tasks`, {
+        userId,
+        day: selectedDay,
+        text: suggestion
+      });
+      
+      const newTaskObj = {
+        id: response.data.id,
+        text: response.data.text,
+        done: response.data.done
+      };
+      
+      // Update local state
+      setTasks(prev => ({
+        ...prev,
+        [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
+      }));
+    } catch (err) {
+      console.error("Error adding suggestion as task:", err);
+      
+      // Fallback approach - add to local state even if API fails
+      const mockId = Date.now(); // Use timestamp as a temporary ID
+      const newTaskObj = {
+        id: mockId,
+        text: suggestion,
+        done: false
+      };
+      
+      setTasks(prev => ({
+        ...prev,
+        [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
+      }));
+      
+      setApiError("Task added locally only. Database connection failed.");
     }
   };
 
-  const handleComplete = (index) => {
+  // Updated to use API - now uses task ID instead of index
+  const handleComplete = async (taskId) => {
     const level = userData?.level || 1;
     const damage = getDamagePerTask(level);
     
-    // Mark task as complete and move it to the bottom
-    const taskToComplete = tasks[selectedDay][index];
-    const otherIncompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && !t.done);
-    const otherCompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && t.done);
-    
-    const updatedTasks = {
-      ...tasks,
-      [selectedDay]: [
-        ...otherIncompleteTasks,
-        ...otherCompleteTasks,
-        { ...taskToComplete, done: true }
-      ]
-    };
-    
-    setTasks(updatedTasks);
-    
-    // Update streak
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to midnight
-    
-    let streak = userData?.stats?.streak || 0;
-    const lastCompletionDate = userData?.lastCompletedDate ? new Date(userData.lastCompletedDate) : null;
-    
-    // If we have a last completion date
-    if (lastCompletionDate) {
-      lastCompletionDate.setHours(0, 0, 0, 0); // Normalize to midnight
+    try {
+      // Toggle the task completion status via API
+      const response = await axios.patch(`${API_BASE_URL}/tasks/${taskId}/toggle`);
+      const updatedTask = response.data;
       
-      // Calculate difference in days
-      const timeDiff = today.getTime() - lastCompletionDate.getTime();
-      const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
-      
-      if (daysDiff === 1) {
-        // Completed yesterday - increase streak
-        streak += 1;
-      } else if (daysDiff > 1) {
-        // Missed some days - reset streak
-        streak = 1;
-      }
-      // If daysDiff is 0, it's the same day, keep streak the same
-    } else {
-      // First completion ever
-      streak = 1;
-    }
-    
-    // Save updated streak and last completion date to Firestore
-    if (auth.currentUser) {
-      const uid = auth.currentUser.uid;
-      const userRef = doc(db, 'users', uid);
-      updateDoc(userRef, {
-        'stats.streak': streak,
-        lastCompletedDate: today.toISOString(),
-        tasks: updatedTasks
-      });
-    }
-
-    setEnemyHP((prev) => {
-      const newHP = prev - damage;
-      
-      if (userData) {
-        const updatedStats = {
-          ...userData.stats,
-          tasksCompleted: (userData.stats?.tasksCompleted || 0) + 1,
-          totalDamage: (userData.stats?.totalDamage || 0) + damage,
-          streak: streak
-        };
+      // Only proceed if the task was marked as done (not unmarked)
+      if (updatedTask.done) {
+        // Update local tasks state
+        const updatedTasks = { ...tasks };
+        updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task => 
+          task.id === taskId ? { ...task, done: true } : task
+        );
         
-        setUserData((prev) => ({ 
-          ...prev, 
-          stats: updatedStats,
-          lastCompletedDate: today.toISOString()
-        }));
-      }
-      
-      setDamageText(`-${damage} HP`);
-      setTimeout(() => setDamageText(''), 1000);
-      
-      if (newHP <= 0) {
-        // Enemy is defeated, award XP
-        const xpGain = 20; // Fixed XP per enemy
-        const currentXP = userData?.xpTotal || 0;
-        const requiredXP = userData?.xpRequired || 20;
-        const newTotalXP = currentXP + xpGain;
+        // Sort to move completed tasks to the bottom
+        updatedTasks[selectedDay].sort((a, b) => {
+          if (a.done === b.done) return 0;
+          return a.done ? 1 : -1;
+        });
         
-        if (newTotalXP >= requiredXP) {
-          // Level up!
-          const newLevel = (userData?.level || 1) + 1;
-          const newRequiredXP = getRequiredXP(newLevel);
-          const xpRemaining = newTotalXP - requiredXP;
+        setTasks(updatedTasks);
+        
+        // Update streak
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize to midnight
+        
+        let streak = userData?.stats?.streak || 0;
+        const lastCompletionDate = userData?.lastCompletedDate ? new Date(userData.lastCompletedDate) : null;
+        
+        // If we have a last completion date
+        if (lastCompletionDate) {
+          lastCompletionDate.setHours(0, 0, 0, 0); // Normalize to midnight
           
-          setUserData(prev => ({
-            ...prev,
-            level: newLevel,
-            xpTotal: xpRemaining,
-            xpRequired: newRequiredXP,
-            stats: {
-              ...prev.stats,
-              streak: streak
-            },
-            lastCompletedDate: today.toISOString()
-          }));
+          // Calculate difference in days
+          const timeDiff = today.getTime() - lastCompletionDate.getTime();
+          const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
           
-          // Update in Firestore
-          if (auth.currentUser) {
-            const uid = auth.currentUser.uid;
-            const userRef = doc(db, 'users', uid);
-            updateDoc(userRef, {
-              level: newLevel,
-              xpTotal: xpRemaining,
-              xpRequired: newRequiredXP,
-              'stats.streak': streak,
-              lastCompletedDate: today.toISOString(),
-              tasks: updatedTasks
-            });
+          if (daysDiff === 1) {
+            // Completed yesterday - increase streak
+            streak += 1;
+          } else if (daysDiff > 1) {
+            // Missed some days - reset streak
+            streak = 1;
           }
-          
-          // Show level up animation
-          setShowLevelUp(true);
-          setTimeout(() => setShowLevelUp(false), 3000);
-          
-          // New enemy HP based on NEW level (after level up)
-          return 20 + ((newLevel - 1) * 5); // Level 1: 20HP, Level 2: 25HP, Level 3: 30HP
+          // If daysDiff is 0, it's the same day, keep streak the same
         } else {
-          // Just update XP
-          setUserData(prev => ({
-            ...prev,
-            xpTotal: newTotalXP,
-            stats: {
-              ...prev.stats,
-              streak: streak
-            },
-            lastCompletedDate: today.toISOString()
-          }));
-          
-          // Update in Firestore
-          if (auth.currentUser) {
-            const uid = auth.currentUser.uid;
-            const userRef = doc(db, 'users', uid);
-            updateDoc(userRef, {
-              xpTotal: newTotalXP,
-              'stats.streak': streak,
-              lastCompletedDate: today.toISOString(),
-              tasks: updatedTasks
-            });
-          }
+          // First completion ever
+          streak = 1;
         }
         
-        // Reset enemy with CURRENT level-appropriate HP
-        return 20 + ((userData?.level || 1) - 1) * 5;
+        // Save updated streak and last completion date to Firestore (no await)
+        const streakData = {
+          'stats.streak': streak,
+          lastCompletedDate: today.toISOString()
+        };
+        updateUserFirestore(streakData);
+        
+        setEnemyHP((prev) => {
+          const newHP = prev - damage;
+          
+          if (userData) {
+            const updatedStats = {
+              ...userData.stats,
+              tasksCompleted: (userData.stats?.tasksCompleted || 0) + 1,
+              totalDamage: (userData.stats?.totalDamage || 0) + damage,
+              streak: streak
+            };
+            
+            setUserData((prev) => ({ 
+              ...prev, 
+              stats: updatedStats,
+              lastCompletedDate: today.toISOString()
+            }));
+          }
+          
+          setDamageText(`-${damage} HP`);
+          setTimeout(() => setDamageText(''), 1000);
+          
+          if (newHP <= 0) {
+            // Enemy is defeated, award XP
+            const xpGain = 20; // Fixed XP per enemy
+            const currentXP = userData?.xpTotal || 0;
+            const requiredXP = userData?.xpRequired || 20;
+            const newTotalXP = currentXP + xpGain;
+            
+            if (newTotalXP >= requiredXP) {
+              // Level up!
+              const newLevel = (userData?.level || 1) + 1;
+              const newRequiredXP = getRequiredXP(newLevel);
+              const xpRemaining = newTotalXP - requiredXP;
+              
+              setUserData(prev => ({
+                ...prev,
+                level: newLevel,
+                xpTotal: xpRemaining,
+                xpRequired: newRequiredXP,
+                stats: {
+                  ...prev.stats,
+                  streak: streak
+                },
+                lastCompletedDate: today.toISOString()
+              }));
+              
+              // Update in Firestore (no await)
+              const levelUpData = {
+                level: newLevel,
+                xpTotal: xpRemaining,
+                xpRequired: newRequiredXP,
+                'stats.streak': streak,
+                lastCompletedDate: today.toISOString()
+              };
+              updateUserFirestore(levelUpData);
+              
+              // Show level up animation
+              setShowLevelUp(true);
+              setTimeout(() => setShowLevelUp(false), 3000);
+              
+              // New enemy HP based on NEW level (after level up)
+              return 20 + ((newLevel - 1) * 10); // Level 1: 20HP, Level 2: 30HP, Level 3: 40HP
+            } else {
+              // Just update XP
+              setUserData(prev => ({
+                ...prev,
+                xpTotal: newTotalXP,
+                stats: {
+                  ...prev.stats,
+                  streak: streak
+                },
+                lastCompletedDate: today.toISOString()
+              }));
+              
+              // Update in Firestore (no await)
+              const xpData = {
+                xpTotal: newTotalXP,
+                'stats.streak': streak,
+                lastCompletedDate: today.toISOString()
+              };
+              updateUserFirestore(xpData);
+            }
+            
+            // Reset enemy with CURRENT level-appropriate HP
+            return 20 + ((userData?.level || 1) - 1) * 10;
+          }
+          
+          return newHP;
+        });
+      } else {
+        // Task was unmarked as done, just update the UI
+        const updatedTasks = { ...tasks };
+        updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task => 
+          task.id === taskId ? { ...task, done: false } : task
+        );
+        setTasks(updatedTasks);
+      }
+    } catch (err) {
+      console.error("Error completing task:", err);
+      
+      // Fallback - update local state even if API fails
+      const updatedTasks = { ...tasks };
+      const taskToToggle = updatedTasks[selectedDay].find(t => t.id === taskId);
+      
+      if (taskToToggle) {
+        // Toggle the task locally
+        taskToToggle.done = !taskToToggle.done;
+        
+        // If task was marked as complete, proceed with game mechanics
+        if (taskToToggle.done) {
+          // Sort to move completed tasks to the bottom
+          updatedTasks[selectedDay].sort((a, b) => {
+            if (a.done === b.done) return 0;
+            return a.done ? 1 : -1;
+          });
+          
+          setTasks(updatedTasks);
+          
+          // Apply damage to enemy
+          setEnemyHP(prev => Math.max(0, prev - damage));
+          setDamageText(`-${damage} HP`);
+          setTimeout(() => setDamageText(''), 1000);
+          
+          // Update user stats in Firebase only
+          const today = new Date();
+          const statsData = {
+            'stats.tasksCompleted': (userData?.stats?.tasksCompleted || 0) + 1,
+            'stats.totalDamage': (userData?.stats?.totalDamage || 0) + damage,
+            lastCompletedDate: today.toISOString()
+          };
+          updateUserFirestore(statsData);
+        } else {
+          // Just update the UI for unmarking
+          setTasks(updatedTasks);
+        }
       }
       
-      return newHP;
-    });
-  };
-
-  const handleDelete = (index) => {
-    const updated = tasks[selectedDay].filter((_, i) => i !== index);
-    setTasks({ ...tasks, [selectedDay]: updated });
-    
-    // Update in database
-    if (userData && auth.currentUser) {
-      const uid = auth.currentUser.uid;
-      const userRef = doc(db, 'users', uid);
-      updateDoc(userRef, { 
-        tasks: { ...tasks, [selectedDay]: updated } 
-      });
+      setApiError("Task updated locally only. Database connection failed.");
     }
   };
 
-  // New function to get AI suggestions
+  // Updated to use API
+  const handleDelete = async (taskId) => {
+    try {
+      // Delete from the API
+      await axios.delete(`${API_BASE_URL}/tasks/${taskId}`);
+      
+      // Update local state
+      setTasks(prev => {
+        const updated = { ...prev };
+        updated[selectedDay] = updated[selectedDay].filter(task => task.id !== taskId);
+        return updated;
+      });
+    } catch (err) {
+      console.error("Error deleting task:", err);
+      
+      // Fallback - delete from local state even if API fails
+      setTasks(prev => {
+        const updated = { ...prev };
+        updated[selectedDay] = updated[selectedDay].filter(task => task.id !== taskId);
+        return updated;
+      });
+      
+      setApiError("Task deleted locally only. Database connection failed.");
+    }
+  };
+
+  // Function to get AI suggestions
   const getAISuggestions = async () => {
     if (!aiPrompt.trim()) {
       setAiError('Please enter a prompt to get suggestions');
@@ -459,6 +624,19 @@ export default function Dashboard() {
         
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
+            onClick={() => navigate('/admin')}
+            style={{ 
+              backgroundColor: '#8a7edf',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Admin
+          </button>
+          <button 
             onClick={toggleAI} 
             style={{ 
               backgroundColor: '#8a7edf',
@@ -486,6 +664,18 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
+
+      {apiError && (
+        <div style={{
+          backgroundColor: '#e74c3c',
+          color: 'white',
+          padding: '0.8rem',
+          borderRadius: '6px',
+          marginBottom: '1rem'
+        }}>
+          {apiError}
+        </div>
+      )}
 
       {showLevelUp && (
         <div style={{
@@ -647,8 +837,8 @@ export default function Dashboard() {
                     flexDirection: 'column',
                     gap: '0.4rem'
                   }}>
-                    {(tasks[selectedDay] || []).map((task, i) => (
-                      <div key={i} style={{
+                    {(tasks[selectedDay] || []).map((task) => (
+                      <div key={task.id} style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -665,31 +855,11 @@ export default function Dashboard() {
                           {task.text}
                         </span>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          {!task.done && (
-                            <button 
-                              onClick={() => handleComplete(i)}
-                              style={{ 
-                                backgroundColor: '#4cd3c2',
-                                color: '#222',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              ✓
-                            </button>
-                          )}
                           <button 
-                            onClick={() => handleDelete(i)}
+                            onClick={() => handleComplete(task.id)}
                             style={{ 
-                              backgroundColor: '#e74c3c',
-                              color: 'white',
+                              backgroundColor: task.done ? '#443d82' : '#4cd3c2',
+                              color: task.done ? '#8a7edf' : '#222',
                               width: '32px',
                               height: '32px',
                               borderRadius: '6px',
@@ -782,14 +952,14 @@ export default function Dashboard() {
                 }}>
                   <div style={{ 
                     height: '100%',
-                    width: `${(enemyHP / (20 + ((userData?.level || 1) - 1) * 5)) * 100}%`,
+                    width: `${(enemyHP / (20 + ((userData?.level || 1) - 1) * 10)) * 100}%`,
                     backgroundColor: '#e74c3c',
                     transition: 'width 0.3s ease-out'
                   }}></div>
                 </div>
                 
                 <p style={{ marginTop: '0.7rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                  {enemyHP} / {20 + ((userData?.level || 1) - 1) * 5} HP
+                  {enemyHP} / {20 + ((userData?.level || 1) - 1) * 10} HP
                 </p>
 
                 {damageText && (
