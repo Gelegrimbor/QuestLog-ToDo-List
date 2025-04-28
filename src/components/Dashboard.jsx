@@ -4,6 +4,8 @@ import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
+const API_BASE_URL = 'https://4e3dbc44-01c6-46ee-9d9e-cc5e5c74995c-00-189guujsr3aay.sisko.replit.dev';
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
