@@ -565,10 +565,10 @@ h3 {
 
 /* Media query for mobile devices */
 @media screen and (max-width: 768px) {
-  /* Global adjustments */
+  /* Global */
   body {
-    overflow-y: auto; /* Allow scrolling */
-    overflow-x: hidden; /* Prevent horizontal scrolling */
+    overflow-y: auto;
+    overflow-x: hidden;
     height: auto;
   }
 
@@ -581,7 +581,7 @@ h3 {
     font-size: 1.4rem;
   }
 
-  /* Container adjustments */
+  /* Containers */
   .page-container {
     height: auto;
     min-height: 100vh;
@@ -591,64 +591,72 @@ h3 {
   .dashboard-container {
     padding: 0.5rem;
   }
-  
-  /* Header adjustments */
+
+  /* Header */
   .header {
     padding: 0.75rem;
     flex-wrap: wrap;
+    justify-content: space-between;
   }
-  
+
   .logo {
     font-size: 1.6rem;
   }
-  
+
   .header-right {
     gap: 0.5rem;
   }
 
-  /* Dashboard layout fix */
+  /* Dashboard layout */
   .dashboard-flex {
     flex-direction: column;
     align-items: center;
-    padding-top: 1rem;
+    gap: 1rem;
+    padding: 1rem 0.5rem;
   }
-  
-  /* Panel adjustments */
-  .left-panel {
-    width: 100%;
-    margin-bottom: 1.5rem;
-    order: 1; /* Reorder to top */
-  }
-  
-  .enemy-zone {
-    width: 100%;
-    max-width: 100%;
-    order: 2; /* Reorder to middle */
-  }
-  
+
+  .left-panel,
+  .enemy-zone,
   .right-panel {
     width: 100%;
+    max-width: 100%;
+  }
+
+  .left-panel {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    order: 1;
+  }
+
+  .enemy-zone {
+    order: 2;
+    text-align: center;
+  }
+
+  .right-panel {
+    order: 3;
     align-items: center;
     margin-top: 1rem;
-    order: 3; /* Reorder to bottom */
   }
-  
-  /* Day buttons adjustments */
+
+  /* Day buttons */
   .day-buttons {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
     gap: 0.5rem;
   }
-  
+
   .day-btn {
-    flex: 1 0 40%; /* Two buttons per row */
+    flex: 1 0 40%;
     padding: 0.4rem 0.2rem;
     font-size: 0.9rem;
     min-width: 110px;
   }
 
-  /* Enemy image size adjustment */
+  /* Enemy image */
   .enemy-img {
     width: 85%;
     max-width: 300px;
@@ -656,7 +664,7 @@ h3 {
     margin: 0.5rem auto;
   }
 
-  /* Form and input adjustments */
+  /* Inputs */
   .auth-container input,
   .task-dropdown input,
   .task-column input {
@@ -664,26 +672,36 @@ h3 {
     max-width: 280px;
   }
 
-  /* Task grid adjustments */
+  /* Tasks */
   .task-grid {
     justify-content: center;
     gap: 0.75rem;
   }
-  
+
   .task-column {
     width: 90%;
     max-width: 280px;
   }
-  
-  /* Welcome popup adjustments */
+
+  .task-row {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .task-box {
+    width: 90%;
+    max-width: 280px;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Popups & panels */
   .welcome-popup {
     width: 90%;
     max-width: 300px;
     top: 15%;
     transform: translate(-50%, -15%);
   }
-  
-  /* Stats panel adjustments */
+
   .stats-panel {
     position: fixed;
     top: 50%;
@@ -692,68 +710,53 @@ h3 {
     width: 90%;
     max-width: 300px;
   }
-  
-  /* Task row adjustments */
-  .task-row {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .task-box {
-    width: 90%;
-    max-width: 280px;
-    margin-bottom: 0.75rem;
-  }
-  
-  /* Button adjustments */
+
+  /* Play button */
   .play-button {
     margin-top: 1.5rem;
   }
-  
-  /* Feature section adjustments */
+
+  /* Feature section */
   .feature-icons {
     flex-wrap: wrap;
     gap: 1rem;
+    justify-content: center;
   }
-  
+
   .feature-tile {
     max-width: 120px;
   }
 }
 
-/* Additional adjustments for extra small screens */
 @media screen and (max-width: 480px) {
-  /* Further reduce sizes */
   h1 {
     font-size: 1.8rem;
   }
-  
+
   .logo {
     font-size: 1.4rem;
   }
-  
-  /* Header buttons for very small screens */
+
   .admin-btn,
   .chat-ai-btn,
   .logout-btn {
     padding: 0.4rem 0.6rem;
     font-size: 0.8rem;
   }
-  
-  /* Day buttons - make them stack vertically on very small screens */
+
   .day-btn {
-    flex: 1 0 100%; /* One button per row */
+    flex: 1 0 100%;
   }
-  
-  /* Top bar adjustments */
+
   .top-bar {
     flex-direction: column;
     align-items: center;
   }
-  
+
   .top-right-buttons {
     flex-direction: row;
     align-items: center;
     margin-top: 0.5rem;
   }
 }
+
