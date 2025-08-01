@@ -23,7 +23,7 @@ export default function Home() {
       </p>
 
       <img
-        src="https://firebasestorage.googleapis.com/v0/b/questlog-efae2.firebasestorage.app/o/QuestLog-ezgif.com-resize.gif?alt=media&token=af857572-9711-433e-b719-1326302c0483"
+        src="/assets/QuestLog.gif"
         alt="QuestLog Level Up"
         style={{
           width: '260px',
