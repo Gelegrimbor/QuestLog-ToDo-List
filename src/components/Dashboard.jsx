@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 import axios from 'axios'; // Make sure to install axios: npm install axios
 
 // Your Replit API URL
-const API_BASE_URL = 'https://questlog-api.vercel.app/';
+const API_BASE_URL = 'https://4e3dbc44-01c6-46ee-9d9e-cc5e5c74995c-00-189guujsr3aay.sisko.replit.dev/';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
