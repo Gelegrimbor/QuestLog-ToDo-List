@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 import axios from 'axios'; // Make sure to install axios: npm install axios
 
 // Your Replit API URL
-const API_BASE_URL = 'https://4e3dbc44-01c6-46ee-9d9e-cc5e5c74995c-00-189guujsr3aay.sisko.replit.dev/api';
+const API_BASE_URL = 'https://questlog-api.vercel.app/';
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -68,18 +68,18 @@ export default function Dashboard() {
           if (!data.username) setShowWelcome(true);
           else {
             setUsername(data.username);
-            
+
             // Set enemy HP based on level
             // For level 1: 20 HP
             // For level 2: 30 HP
             // For level 3: 40 HP, etc.
             const currentHP = data.currentEnemyHP || (20 + ((data.level || 1) - 1) * 10);
             setEnemyHP(currentHP);
-            
+
             // Fetch tasks from the Replit API
             fetchAllTasks(user.uid);
           }
-          
+
           // Set tasks if they exist
           if (data.tasks) {
             setTasks(data.tasks);
@@ -98,15 +98,15 @@ export default function Dashboard() {
   const fetchAllTasks = async (userId) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/tasks/${userId}`);
-      
+
       // Group tasks by day
       const tasksObj = {};
-      
+
       // Initialize empty arrays for each day
       days.forEach(day => {
         tasksObj[day] = [];
       });
-      
+
       // Populate with tasks from API
       response.data.forEach(task => {
         if (tasksObj[task.day]) {
@@ -117,7 +117,7 @@ export default function Dashboard() {
           });
         }
       });
-      
+
       setTasks(tasksObj);
     } catch (err) {
       console.error("Error fetching tasks:", err);
@@ -128,7 +128,7 @@ export default function Dashboard() {
   const handleUsernameSubmit = async () => {
     const uid = auth.currentUser.uid;
     const userRef = doc(db, 'users', uid);
-    await updateDoc(userRef, { 
+    await updateDoc(userRef, {
       username,
       level: 1,
       xpTotal: 0,
@@ -137,11 +137,11 @@ export default function Dashboard() {
         tasksCompleted: 0,
         totalDamage: 0,
         streak: 0
-      } 
+      }
     });
     setShowWelcome(false);
-    setUserData((prev) => ({ 
-      ...prev, 
+    setUserData((prev) => ({
+      ...prev,
       username,
       level: 1,
       xpTotal: 0,
@@ -150,7 +150,7 @@ export default function Dashboard() {
         tasksCompleted: 0,
         totalDamage: 0,
         streak: 0
-      } 
+      }
     }));
   };
 
@@ -165,7 +165,7 @@ export default function Dashboard() {
   }
 
   const toggleStats = () => setMyStats((prev) => !prev);
-  
+
   const toggleAI = () => {
     setShowAI((prev) => !prev);
     setAiError('');
@@ -174,9 +174,9 @@ export default function Dashboard() {
   // Updated to use API
   const handleAddTask = async () => {
     if (!newTask.trim()) return;
-    
+
     const userId = auth.currentUser.uid;
-    
+
     try {
       // Create task in the SQL database via API
       const response = await axios.post(`${API_BASE_URL}/tasks`, {
@@ -184,23 +184,23 @@ export default function Dashboard() {
         day: selectedDay,
         text: newTask
       });
-      
+
       const newTaskObj = {
         id: response.data.id,
         text: response.data.text,
         done: response.data.done
       };
-      
+
       // Update local state
       setTasks(prev => ({
         ...prev,
         [selectedDay]: [...(prev[selectedDay] || []), newTaskObj]
       }));
-      
+
       setNewTask('');
     } catch (err) {
       console.error("Error adding task:", err);
-      
+
       // Fallback to previous Firebase approach if API fails
       const updated = {
         ...tasks,
@@ -208,7 +208,7 @@ export default function Dashboard() {
       };
       setTasks(updated);
       setNewTask('');
-      
+
       // Save tasks to database
       if (userData && auth.currentUser) {
         const uid = auth.currentUser.uid;
@@ -221,7 +221,7 @@ export default function Dashboard() {
   // Add a task from AI suggestions
   const addSuggestionAsTask = async (suggestion) => {
     const userId = auth.currentUser.uid;
-    
+
     try {
       // Create task in the SQL database via API
       const response = await axios.post(`${API_BASE_URL}/tasks`, {
@@ -229,13 +229,13 @@ export default function Dashboard() {
         day: selectedDay,
         text: suggestion
       });
-      
+
       const newTaskObj = {
         id: response.data.id,
         text: response.data.text,
         done: response.data.done
       };
-      
+
       // Update local state
       setTasks(prev => ({
         ...prev,
@@ -243,14 +243,14 @@ export default function Dashboard() {
       }));
     } catch (err) {
       console.error("Error adding suggestion as task:", err);
-      
+
       // Fallback to previous Firebase approach if API fails
       const updated = {
         ...tasks,
         [selectedDay]: [...(tasks[selectedDay] || []), { text: suggestion, done: false }],
       };
       setTasks(updated);
-      
+
       // Save tasks to database
       if (userData && auth.currentUser) {
         const uid = auth.currentUser.uid;
@@ -263,40 +263,40 @@ export default function Dashboard() {
   const handleComplete = async (taskId) => {
     const level = userData?.level || 1;
     const damage = getDamagePerTask(level);
-    
+
     try {
       // Toggle the task completion status via API
       await axios.patch(`${API_BASE_URL}/tasks/${taskId}/toggle`);
-      
+
       // Update the tasks in state
       const updatedTasks = { ...tasks };
-      updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task => 
+      updatedTasks[selectedDay] = updatedTasks[selectedDay].map(task =>
         task.id === taskId ? { ...task, done: true } : task
       );
-      
+
       // Move completed tasks to the bottom
       updatedTasks[selectedDay].sort((a, b) => {
         if (a.done === b.done) return 0;
         return a.done ? 1 : -1;
       });
-      
+
       setTasks(updatedTasks);
-      
+
       // Update streak
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Normalize to midnight
-      
+
       let streak = userData?.stats?.streak || 0;
       const lastCompletionDate = userData?.lastCompletedDate ? new Date(userData.lastCompletedDate) : null;
-      
+
       // If we have a last completion date
       if (lastCompletionDate) {
         lastCompletionDate.setHours(0, 0, 0, 0); // Normalize to midnight
-        
+
         // Calculate difference in days
         const timeDiff = today.getTime() - lastCompletionDate.getTime();
         const daysDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
-        
+
         if (daysDiff === 1) {
           // Completed yesterday - increase streak
           streak += 1;
@@ -309,17 +309,17 @@ export default function Dashboard() {
         // First completion ever
         streak = 1;
       }
-    
+
       // Update Firestore with streak and last completion date
       updateUserFirestore({
         'stats.streak': streak,
         lastCompletedDate: today.toISOString(),
         tasks: updatedTasks
       });
-      
+
       setEnemyHP((prev) => {
         const newHP = prev - damage;
-        
+
         if (userData) {
           const updatedStats = {
             ...userData.stats,
@@ -327,30 +327,30 @@ export default function Dashboard() {
             totalDamage: (userData.stats?.totalDamage || 0) + damage,
             streak: streak
           };
-          
-          setUserData((prev) => ({ 
-            ...prev, 
+
+          setUserData((prev) => ({
+            ...prev,
             stats: updatedStats,
             lastCompletedDate: today.toISOString()
           }));
         }
-        
+
         setDamageText(`-${damage} HP`);
         setTimeout(() => setDamageText(''), 1000);
-        
+
         if (newHP <= 0) {
           // Enemy is defeated, award XP
           const xpGain = 20; // Fixed XP per enemy
           const currentXP = userData?.xpTotal || 0;
           const requiredXP = userData?.xpRequired || 20;
           const newTotalXP = currentXP + xpGain;
-          
+
           if (newTotalXP >= requiredXP) {
             // Level up!
             const newLevel = (userData?.level || 1) + 1;
             const newRequiredXP = getRequiredXP(newLevel);
             const xpRemaining = newTotalXP - requiredXP;
-            
+
             setUserData(prev => ({
               ...prev,
               level: newLevel,
@@ -362,7 +362,7 @@ export default function Dashboard() {
               },
               lastCompletedDate: today.toISOString()
             }));
-            
+
             // Update in Firestore (separated to avoid await in setState)
             updateUserFirestore({
               level: newLevel,
@@ -372,11 +372,11 @@ export default function Dashboard() {
               lastCompletedDate: today.toISOString(),
               tasks: updatedTasks
             });
-            
+
             // Show level up animation
             setShowLevelUp(true);
             setTimeout(() => setShowLevelUp(false), 3000);
-            
+
             // New enemy HP based on NEW level (after level up)
             return 20 + ((newLevel - 1) * 10); // Level 1: 20HP, Level 2: 30HP, Level 3: 40HP
           } else {
@@ -390,7 +390,7 @@ export default function Dashboard() {
               },
               lastCompletedDate: today.toISOString()
             }));
-            
+
             // Update in Firestore (separated to avoid await in setState)
             updateUserFirestore({
               xpTotal: newTotalXP,
@@ -399,25 +399,25 @@ export default function Dashboard() {
               tasks: updatedTasks
             });
           }
-          
+
           // Reset enemy with CURRENT level-appropriate HP
           return 20 + ((userData?.level || 1) - 1) * 10;
         }
-        
+
         return newHP;
       });
     } catch (err) {
       console.error("Error completing task:", err);
-      
+
       // Fallback to previous Firebase approach if API fails
       // Mark task as complete
       const index = tasks[selectedDay].findIndex(task => task.id === taskId);
       if (index === -1) return;
-      
+
       const taskToComplete = tasks[selectedDay][index];
       const otherIncompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && !t.done);
       const otherCompleteTasks = tasks[selectedDay].filter((t, i) => i !== index && t.done);
-      
+
       const updatedTasks = {
         ...tasks,
         [selectedDay]: [
@@ -426,14 +426,14 @@ export default function Dashboard() {
           { ...taskToComplete, done: true }
         ]
       };
-      
+
       setTasks(updatedTasks);
-      
+
       // Apply damage
       setEnemyHP(prev => prev - damage);
       setDamageText(`-${damage} HP`);
       setTimeout(() => setDamageText(''), 1000);
-      
+
       // Update Firestore
       const today = new Date();
       updateUserFirestore({
@@ -449,7 +449,7 @@ export default function Dashboard() {
     try {
       // Delete from the API
       await axios.delete(`${API_BASE_URL}/tasks/${taskId}`);
-      
+
       // Update local state
       setTasks(prev => {
         const updated = { ...prev };
@@ -458,15 +458,15 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error("Error deleting task:", err);
-      
+
       // Fallback to previous Firebase approach if API fails
       const index = tasks[selectedDay].findIndex(task => task.id === taskId);
       if (index === -1) return;
-      
+
       const updated = tasks[selectedDay].filter((_, i) => i !== index);
       const updatedTasks = { ...tasks, [selectedDay]: updated };
       setTasks(updatedTasks);
-      
+
       // Update Firestore
       if (userData && auth.currentUser) {
         const uid = auth.currentUser.uid;
@@ -482,15 +482,15 @@ export default function Dashboard() {
       setAiError('Please enter a prompt to get suggestions');
       return;
     }
-    
+
     if (!API_KEY) {
       setAiError('API key not configured. Please check your environment settings.');
       return;
     }
-    
+
     setAiLoading(true);
     setAiError('');
-    
+
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -514,15 +514,15 @@ export default function Dashboard() {
           max_tokens: 300
         })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error?.message || 'API request failed');
       }
-      
+
       const data = await response.json();
       let suggestions = [];
-      
+
       try {
         // Try to parse the response as JSON
         const content = data.choices[0]?.message?.content || '';
@@ -541,7 +541,7 @@ export default function Dashboard() {
         // Last resort fallback
         suggestions = [data.choices[0]?.message?.content || 'No suggestions available'];
       }
-      
+
       setAiSuggestions(suggestions);
     } catch (error) {
       console.error('Error getting AI suggestions:', error);
@@ -554,14 +554,14 @@ export default function Dashboard() {
   if (loading) return <p>Loading...</p>;
 
   return (
-    <div className="dashboard-container" style={{ 
-      backgroundColor: '#2b2750', 
+    <div className="dashboard-container" style={{
+      backgroundColor: '#2b2750',
       color: 'white',
       minHeight: '100vh',
       padding: '1rem'
     }}>
       <style>
-      {`
+        {`
         /* Custom Scrollbar Styles */
         ::-webkit-scrollbar {
           width: 8px;
@@ -589,22 +589,22 @@ export default function Dashboard() {
       `}
       </style>
 
-      <header style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <header style={{
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: '1.5rem'
       }}>
-        <h1 className="title" style={{ 
+        <h1 className="title" style={{
           fontSize: '2rem',
           color: '#f3d41b',
           margin: 0
         }}>QuestLog</h1>
-        
+
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
+          <button
             onClick={() => navigate('/admin')}
-            style={{ 
+            style={{
               backgroundColor: '#8a7edf',
               color: 'white',
               padding: '0.5rem 1rem',
@@ -615,9 +615,9 @@ export default function Dashboard() {
           >
             Admin
           </button>
-          <button 
-            onClick={toggleAI} 
-            style={{ 
+          <button
+            onClick={toggleAI}
+            style={{
               backgroundColor: '#8a7edf',
               color: 'white',
               padding: '0.5rem 1rem',
@@ -628,9 +628,9 @@ export default function Dashboard() {
           >
             Chat AI
           </button>
-          <button 
-            onClick={handleLogout} 
-            style={{ 
+          <button
+            onClick={handleLogout}
+            style={{
               backgroundColor: '#e74c3c',
               color: 'white',
               padding: '0.5rem 1rem',
@@ -688,7 +688,7 @@ export default function Dashboard() {
               border: 'none'
             }}
           />
-          <button 
+          <button
             onClick={handleUsernameSubmit}
             style={{
               backgroundColor: '#4cd3c2',
@@ -705,15 +705,15 @@ export default function Dashboard() {
         </div>
       ) : (
         userData && (
-          <div style={{ 
-            display: 'grid', 
+          <div style={{
+            display: 'grid',
             gridTemplateColumns: '200px 1fr 300px',
             gap: '1.5rem',
             height: 'calc(100vh - 100px)'
           }}>
             {/* Day Selection Panel */}
-            <div style={{ 
-              backgroundColor: '#332d61', 
+            <div style={{
+              backgroundColor: '#332d61',
               borderRadius: '10px',
               padding: '0.5rem',
               display: 'flex',
@@ -724,7 +724,7 @@ export default function Dashboard() {
                 <button
                   key={day}
                   onClick={() => setSelectedDay(day)}
-                  style={{ 
+                  style={{
                     backgroundColor: selectedDay === day ? '#8a7edf' : '#443d82',
                     color: 'white',
                     padding: '0.8rem',
@@ -740,40 +740,40 @@ export default function Dashboard() {
             </div>
 
             {/* Tasks Panel */}
-            <div style={{ 
-              backgroundColor: '#332d61', 
+            <div style={{
+              backgroundColor: '#332d61',
               borderRadius: '10px',
               padding: '1.5rem',
               display: 'flex',
               flexDirection: 'column'
             }}>
-              <h2 style={{ 
+              <h2 style={{
                 borderBottom: '1px solid #554f86',
                 paddingBottom: '0.8rem',
                 marginTop: 0,
                 marginBottom: '1rem'
               }}>{selectedDay}'s Quests</h2>
-              
-              <div style={{ 
-                display: 'flex', 
-                gap: '0.5rem', 
-                marginBottom: '1.5rem' 
+
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem',
+                marginBottom: '1.5rem'
               }}>
                 <input
                   value={newTask}
                   onChange={(e) => setNewTask(e.target.value)}
                   placeholder="Add a new quest..."
                   onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-                  style={{ 
-                    flex: 1, 
+                  style={{
+                    flex: 1,
                     padding: '0.7rem',
                     borderRadius: '6px',
                     border: 'none'
                   }}
                 />
-                <button 
+                <button
                   onClick={handleAddTask}
-                  style={{ 
+                  style={{
                     backgroundColor: '#4cd3c2',
                     color: '#222',
                     padding: '0 1.5rem',
@@ -787,7 +787,7 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div style={{ 
+              <div style={{
                 flex: 1,
                 overflowY: 'auto',
                 maxHeight: 'calc(100vh - 250px)',
@@ -799,7 +799,7 @@ export default function Dashboard() {
                   </p>
                 ) : (
                   <div className="task-list" style={{
-                    overflowY: 'auto', 
+                    overflowY: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.4rem'
@@ -814,18 +814,18 @@ export default function Dashboard() {
                         borderRadius: '6px',
                         border: '1px solid #443d82'
                       }}>
-                        <span style={{ 
-                          color: task.done ? '#8a7edf' : 'white', 
-                          textDecoration: task.done ? 'line-through' : 'none', 
-                          flex: 1 
+                        <span style={{
+                          color: task.done ? '#8a7edf' : 'white',
+                          textDecoration: task.done ? 'line-through' : 'none',
+                          flex: 1
                         }}>
                           {task.text}
                         </span>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           {!task.done && (
-                            <button 
+                            <button
                               onClick={() => handleComplete(task.id || i)}
-                              style={{ 
+                              style={{
                                 backgroundColor: '#4cd3c2',
                                 color: '#222',
                                 width: '32px',
@@ -842,9 +842,9 @@ export default function Dashboard() {
                               ✓
                             </button>
                           )}
-                          <button 
+                          <button
                             onClick={() => handleDelete(task.id || i)}
-                            style={{ 
+                            style={{
                               backgroundColor: '#e74c3c',
                               color: 'white',
                               width: '32px',
@@ -869,14 +869,14 @@ export default function Dashboard() {
             </div>
 
             {/* Right Panel - Enemy and Stats */}
-            <div style={{ 
+            <div style={{
               display: 'flex',
               flexDirection: 'column',
               gap: '1rem'
             }}>
               {/* Enemy Panel - Enlarged and Enhanced */}
-              <div style={{ 
-                backgroundColor: '#332d61', 
+              <div style={{
+                backgroundColor: '#332d61',
                 borderRadius: '10px',
                 padding: '1.5rem',
                 display: 'flex',
@@ -899,8 +899,8 @@ export default function Dashboard() {
                     <img
                       src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmN2YW44djk3c20yNjc3OW5tbzN2YXoxZ2x2amN3M2IzdXh6bWl4aCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o6vY4JV7oRVZPems0/giphy.gif"
                       alt="Level 1 Enemy"
-                      style={{ 
-                        width: '100%', 
+                      style={{
+                        width: '100%',
                         height: '100%',
                         objectFit: 'cover'
                       }}
@@ -910,8 +910,8 @@ export default function Dashboard() {
                     <img
                       src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExaThncWF2ZzUyYm9wZGV1Y2thMzdkeG16eGRuN2JmZ3Fic2c2eWhyNSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QVyiT43l46cUcziWxp/giphy.gif"
                       alt="Level 2 Enemy"
-                      style={{ 
-                        width: '100%', 
+                      style={{
+                        width: '100%',
                         height: '100%',
                         objectFit: 'cover'
                       }}
@@ -921,8 +921,8 @@ export default function Dashboard() {
                     <img
                       src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExMGo1eXhyZWE4NjZmb3VpaWlhNDBkbTI5eXBnZGhhZHcwajFmeGtsOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JUkHqOky4Np0xyL4k8/giphy.gif"
                       alt="Level 3+ Enemy"
-                      style={{ 
-                        width: '100%', 
+                      style={{
+                        width: '100%',
                         height: '100%',
                         objectFit: 'cover'
                       }}
@@ -930,21 +930,21 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <div style={{ 
+                <div style={{
                   width: '100%',
                   height: '12px',
                   backgroundColor: '#443d82',
                   borderRadius: '6px',
                   overflow: 'hidden'
                 }}>
-                  <div style={{ 
+                  <div style={{
                     height: '100%',
                     width: `${(enemyHP / (20 + ((userData?.level || 1) - 1) * 10)) * 100}%`,
                     backgroundColor: '#e74c3c',
                     transition: 'width 0.3s ease-out'
                   }}></div>
                 </div>
-                
+
                 <p style={{ marginTop: '0.7rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold' }}>
                   {enemyHP} / {20 + ((userData?.level || 1) - 1) * 10} HP
                 </p>
@@ -966,18 +966,18 @@ export default function Dashboard() {
               </div>
 
               {/* Stats Panel - Reordered and Username added */}
-              <div style={{ 
-                backgroundColor: '#332d61', 
+              <div style={{
+                backgroundColor: '#332d61',
                 borderRadius: '10px',
                 padding: '1.5rem',
                 marginTop: '1rem'
               }}>
-                <h2 style={{ 
+                <h2 style={{
                   marginTop: 0,
                   marginBottom: '1rem'
                 }}>{userData.username}'s Stats</h2>
-                
-                <div style={{ 
+
+                <div style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
                   gap: '0.8rem'
@@ -986,22 +986,22 @@ export default function Dashboard() {
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
                     {userData.level || 1}
                   </div>
-                  
+
                   <div>XP</div>
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
                     {userData.xpTotal || 0}/{userData.xpRequired || getRequiredXP(userData.level || 1)}
                   </div>
-                  
+
                   <div>Quests Completed</div>
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
                     {userData.stats?.tasksCompleted || 0}
                   </div>
-                  
+
                   <div>Current Streak</div>
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
                     {userData.stats?.streak || 0} days
                   </div>
-                  
+
                   <div>Damage per Quest</div>
                   <div style={{ textAlign: 'right', fontWeight: 'bold' }}>
                     {getDamagePerTask(userData.level || 1)}
@@ -1027,7 +1027,7 @@ export default function Dashboard() {
           zIndex: 100
         }}>
           <h3 style={{ marginTop: 0, color: '#fff' }}>Chat AI Assistant</h3>
-          
+
           <div style={{ marginBottom: '1rem' }}>
             <p style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Ask me for quest suggestions:</p>
             <textarea
@@ -1062,10 +1062,10 @@ export default function Dashboard() {
               {aiLoading ? 'Getting Suggestions...' : 'Get Suggestions'}
             </button>
           </div>
-          
+
           {aiError && (
-            <div style={{ 
-              backgroundColor: '#e74c3c', 
+            <div style={{
+              backgroundColor: '#e74c3c',
               color: 'white',
               padding: '0.8rem',
               borderRadius: '6px',
@@ -1074,9 +1074,9 @@ export default function Dashboard() {
               {aiError}
             </div>
           )}
-          
+
           {aiSuggestions.length > 0 && (
-            <div style={{ 
+            <div style={{
               backgroundColor: '#3a3363',
               padding: '1rem',
               borderRadius: '8px',
@@ -1085,7 +1085,7 @@ export default function Dashboard() {
               <p style={{ fontWeight: 'bold', marginTop: 0, marginBottom: '0.8rem' }}>
                 Suggested Quests:
               </p>
-              <ul style={{ 
+              <ul style={{
                 paddingLeft: '1.2rem',
                 marginTop: 0,
                 marginBottom: 0
@@ -1113,7 +1113,7 @@ export default function Dashboard() {
               </ul>
             </div>
           )}
-          
+
           <div style={{ backgroundColor: '#3a3363', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem' }}>
             <p style={{ fontWeight: 'bold', marginTop: 0 }}>Try these examples:</p>
             <ul style={{ paddingLeft: '1.2rem', marginBottom: '0.5rem' }}>
@@ -1122,7 +1122,7 @@ export default function Dashboard() {
               <li>"Give me 5 creative quests for the weekend"</li>
             </ul>
           </div>
-          
+
           <button
             onClick={toggleAI}
             style={{
